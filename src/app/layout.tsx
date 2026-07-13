@@ -13,9 +13,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Facturas - Correos con adjuntos PDF/XML",
-  description:
-    "Lista de correos de Gmail con archivos PDF y XML adjuntos",
+  title: "Facturas",
+  description: "Gestión de facturas",
 }
 
 export default function RootLayout({

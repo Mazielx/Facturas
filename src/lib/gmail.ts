@@ -1,5 +1,5 @@
 import { google } from "googleapis"
-import type { OAuth2Client } from "google-auth-library"
+import type { OAuth2Client, Credentials } from "google-auth-library"
 import type { EmailMessage, AttachmentInfo } from "./types"
 
 const SCOPES = [
@@ -32,13 +32,13 @@ export async function getTokensFromCode(code: string) {
   return tokens
 }
 
-export function getOAuth2ClientWithTokens(tokens: {
-  access_token?: string
-  refresh_token?: string
-  expiry_date?: number
-}): OAuth2Client {
+export function getOAuth2ClientWithTokens(tokens: Credentials): OAuth2Client {
   const oauth2Client = getOAuth2Client()
-  oauth2Client.setCredentials(tokens)
+  oauth2Client.setCredentials({
+    access_token: tokens.access_token ?? undefined,
+    refresh_token: tokens.refresh_token ?? undefined,
+    expiry_date: tokens.expiry_date ?? undefined,
+  })
   return oauth2Client
 }
 
@@ -84,6 +84,7 @@ export async function listEmailsWithAttachments(
     const date = headers.find((h) => h.name === "Date")?.value || ""
 
     const attachments: AttachmentInfo[] = []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const collectAttachments = (parts: any[] | undefined) => {
       if (!parts) return
       for (const part of parts) {
