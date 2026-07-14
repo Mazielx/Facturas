@@ -56,9 +56,13 @@ export default function Home() {
     async function check() {
       try {
         const res = await fetch("/api/negocios")
+        if (res.status === 401) {
+          window.location.href = "/login"
+          return
+        }
         const data = await res.json()
         if (cancelled) return
-        if (data.activeSlug) {
+        if (data.activeSlug && data.negocios) {
           const active = data.negocios.find(
             (n: NegocioInfo) => n.slug === data.activeSlug
           )
