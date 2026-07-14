@@ -26,8 +26,7 @@ async function main() {
     return
   }
 
-  const passwordHash = await bcrypt.hash(password, 12)
-  const admin = createUsuario(email, passwordHash, "Administrador", "admin")
+  const admin = await createUsuario(email, password, "Administrador", "admin")
 
   console.log("Usuario admin creado exitosamente:")
   console.log(`  ID: ${admin.id}`)
