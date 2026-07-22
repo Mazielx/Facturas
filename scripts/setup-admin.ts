@@ -1,5 +1,5 @@
-import { getMainDb, createUsuario, getUsuarioByEmail } from "../src/db"
-import bcrypt from "bcrypt"
+import { getMainDb, getUsuarioByEmail } from "../src/db"
+import { hashPassword } from "../src/lib/auth"
 
 async function main() {
   const email = process.argv[2]
@@ -20,19 +20,22 @@ async function main() {
   }
 
   if (existing && force) {
-    const passwordHash = await bcrypt.hash(password, 12)
+    const passwordHash = await hashPassword(password)
     db.prepare("UPDATE usuarios SET password_hash = ?, activo = 1 WHERE id = ?").run(passwordHash, existing.id)
     console.log(`Usuario ${email} actualizado correctamente.`)
     return
   }
 
-  const admin = await createUsuario(email, password, "Administrador", "admin")
+  const passwordHash = await hashPassword(password)
+  const result = db
+    .prepare("INSERT INTO usuarios (email, password_hash, nombre, role) VALUES (?, ?, ?, ?)")
+    .run(email, passwordHash, "Administrador", "admin")
 
   console.log("Usuario admin creado exitosamente:")
-  console.log(`  ID: ${admin.id}`)
-  console.log(`  Email: ${admin.email}`)
-  console.log(`  Nombre: ${admin.nombre}`)
-  console.log(`  Rol: ${admin.role}`)
+  console.log(`  ID: ${result.lastInsertRowid}`)
+  console.log(`  Email: ${email}`)
+  console.log(`  Nombre: Administrador`)
+  console.log(`  Rol: admin`)
 }
 
 main()

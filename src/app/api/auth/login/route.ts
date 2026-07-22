@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyPassword, createSession, getUsuarioByEmail } from "@/lib/auth"
+import { getAllNegocios } from "@/db"
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,10 +41,17 @@ export async function POST(req: NextRequest) {
 
     const session = createSession(usuario.id)
 
-    const redirectTo = usuario.role === "admin" ? "/admin" : "/"
-    const response = NextResponse.json({
+    let negocioSlug: string | null = null
+    const allNegocios = getAllNegocios()
+    if (allNegocios.length === 1) {
+      negocioSlug = allNegocios[0].slug
+    }
+
+    return NextResponse.json({
       success: true,
-      redirectTo,
+      redirectTo: "/",
+      sessionId: session.id,
+      negocioSlug,
       user: {
         id: usuario.id,
         email: usuario.email,
@@ -52,16 +60,6 @@ export async function POST(req: NextRequest) {
         negocio_id: usuario.negocio_id,
       },
     })
-
-    response.cookies.set("session_id", session.id, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 30 * 24 * 60 * 60,
-    })
-
-    return response
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json(

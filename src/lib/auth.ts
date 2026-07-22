@@ -14,6 +14,9 @@ export interface Usuario {
   role: "admin" | "negocio"
   negocio_id: number | null
   activo: number
+  profile_photo_url: string | null
+  email_changed_at: string | null
+  telefono: string | null
   created_at: string
   updated_at: string
 }
@@ -76,6 +79,9 @@ export function getSessionUser(sessionId: string): (Usuario & { session: Session
     role: row.role,
     negocio_id: row.negocio_id,
     activo: row.activo,
+    profile_photo_url: row.profile_photo_url ?? null,
+    email_changed_at: row.email_changed_at ?? null,
+    telefono: row.telefono ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
     session: {
@@ -149,6 +155,9 @@ export function createUsuario(
     role,
     negocio_id: negocioId || null,
     activo: 1,
+    profile_photo_url: null,
+    email_changed_at: null,
+    telefono: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   })

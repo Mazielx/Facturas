@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts"
 
 interface StatusData {
@@ -15,23 +15,23 @@ const COLORS: Record<string, string> = {
   cancelada: "#ef4444",
 }
 
-export default function StatusDistribution({ data }: { data?: StatusData[] }) {
-  const [chartData, setChartData] = useState<Array<{ name: string; value: number; total: number }>>([])
+export default function StatusDistribution({ data, refreshKey }: { data?: StatusData[]; refreshKey?: number }) {
+  const [remoteData, setRemoteData] = useState<StatusData[]>([])
   const [loading, setLoading] = useState(!data)
 
   useEffect(() => {
-    if (data) {
-      setChartData(data.map((d) => ({ name: d.estado, value: d.count, total: d.sum })))
-      return
-    }
-
+    if (data) return
+    setLoading(true)
     fetch("/api/facturas/stats")
       .then((res) => res.json())
-      .then((stats) => {
-        setChartData((stats.porEstado || []).map((d: StatusData) => ({ name: d.estado, value: d.count, total: d.sum })))
-      })
+      .then((stats) => setRemoteData(stats.porEstado || []))
       .finally(() => setLoading(false))
-  }, [data])
+  }, [data, refreshKey])
+
+  const chartData = useMemo(() => {
+    const source = data || remoteData
+    return source.map((d) => ({ name: d.estado, value: d.count, total: d.sum }))
+  }, [data, remoteData])
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-zinc-400">Cargando...</div>

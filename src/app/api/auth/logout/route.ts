@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { deleteSession } from "@/lib/auth"
 import { cookies } from "next/headers"
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
     const cookieStore = await cookies()
     const sessionId = cookieStore.get("session_id")?.value
@@ -11,10 +11,7 @@ export async function POST(req: NextRequest) {
       deleteSession(sessionId)
     }
 
-    const response = NextResponse.json({ success: true })
-    response.cookies.delete("session_id")
-
-    return response
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Logout error:", error)
     return NextResponse.json(

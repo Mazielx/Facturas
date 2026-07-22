@@ -16,12 +16,13 @@ export function getOAuth2Client(): OAuth2Client {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri)
 }
 
-export function getAuthUrl(): string {
+export function getAuthUrl(state?: string): string {
   const oauth2Client = getOAuth2Client()
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     prompt: "consent",
+    state: state || "",
   })
 }
 
@@ -32,12 +33,35 @@ export async function getTokensFromCode(code: string) {
   return tokens
 }
 
+export async function getGoogleProfilePhoto(accessToken: string): Promise<string | null> {
+  try {
+    const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.picture || null
+  } catch {
+    return null
+  }
+}
+
 export function getOAuth2ClientWithTokens(tokens: Credentials): OAuth2Client {
   const oauth2Client = getOAuth2Client()
   oauth2Client.setCredentials({
     access_token: tokens.access_token ?? undefined,
     refresh_token: tokens.refresh_token ?? undefined,
     expiry_date: tokens.expiry_date ?? undefined,
+  })
+  return oauth2Client
+}
+
+export function getAuthFromCuentaCorreo(cuenta: { access_token: string | null; refresh_token: string | null; token_expiry: string | null }): OAuth2Client {
+  const oauth2Client = getOAuth2Client()
+  oauth2Client.setCredentials({
+    access_token: cuenta.access_token ?? undefined,
+    refresh_token: cuenta.refresh_token ?? undefined,
+    expiry_date: cuenta.token_expiry ? new Date(cuenta.token_expiry).getTime() : undefined,
   })
   return oauth2Client
 }

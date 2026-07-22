@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 
 interface ProviderData {
@@ -9,35 +9,27 @@ interface ProviderData {
   sum: number
 }
 
-export default function TopProviders({ data }: { data?: ProviderData[] }) {
-  const [chartData, setChartData] = useState<Array<{ name: string; facturas: number; total: number }>>([])
+export default function TopProviders({ data, refreshKey }: { data?: ProviderData[]; refreshKey?: number }) {
+  const [remoteData, setRemoteData] = useState<ProviderData[]>([])
   const [loading, setLoading] = useState(!data)
 
   useEffect(() => {
-    if (data) {
-      setChartData(
-        data.map((d) => ({
-          name: d.emisor_nombre.length > 20 ? d.emisor_nombre.substring(0, 20) + "..." : d.emisor_nombre,
-          facturas: d.count,
-          total: d.sum,
-        }))
-      )
-      return
-    }
-
+    if (data) return
+    setLoading(true)
     fetch("/api/facturas/stats")
       .then((res) => res.json())
-      .then((stats) => {
-        setChartData(
-          (stats.topEmisores || []).map((d: ProviderData) => ({
-            name: d.emisor_nombre.length > 20 ? d.emisor_nombre.substring(0, 20) + "..." : d.emisor_nombre,
-            facturas: d.count,
-            total: d.sum,
-          }))
-        )
-      })
+      .then((stats) => setRemoteData(stats.topEmisores || []))
       .finally(() => setLoading(false))
-  }, [data])
+  }, [data, refreshKey])
+
+  const chartData = useMemo(() => {
+    const source = data || remoteData
+    return source.map((d) => ({
+      name: d.emisor_nombre.length > 20 ? d.emisor_nombre.substring(0, 20) + "..." : d.emisor_nombre,
+      facturas: d.count,
+      total: d.sum,
+    }))
+  }, [data, remoteData])
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-zinc-400">Cargando...</div>

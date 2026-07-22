@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server"
-import { requireActiveTenant } from "@/lib/tenant"
+import { requireActiveTenant, getActiveTenant } from "@/lib/tenant"
+import { convertCurrency } from "@/lib/currency"
 
 export async function GET(request: Request) {
   try {
     const { db } = await requireActiveTenant()
+    const tenant = await getActiveTenant()
+    const monedaDefault = tenant?.negocio?.moneda_default || "MXN"
     const { searchParams } = new URL(request.url)
 
     const page = parseInt(searchParams.get("page") || "1")
@@ -109,7 +112,18 @@ export async function GET(request: Request) {
       ORDER BY f.fecha_emision DESC
       LIMIT ? OFFSET ?
     `
-    const facturas = db.prepare(query).all(...params, limit, offset)
+    const facturasRaw = db.prepare(query).all(...params, limit, offset) as Array<Record<string, unknown>>
+
+    const facturas = facturasRaw.map((f) => {
+      const originalCurrency = (f.moneda as string) || "MXN"
+      return {
+        ...f,
+        total_original: f.total,
+        moneda_original: originalCurrency,
+        total_convertido: Math.round(convertCurrency(f.total as number, originalCurrency, monedaDefault) * 100) / 100,
+        moneda_default: monedaDefault,
+      }
+    })
 
     return NextResponse.json({
       facturas,

@@ -32,6 +32,7 @@ export default function NegocioSelector({ onSelect }: Props) {
 
   const handleSelect = async (slug: string) => {
     await fetch(`/api/negocios/${slug}/select`, { method: "POST" })
+    document.cookie = `negocio_slug=${slug}; path=/; max-age=${365 * 24 * 60 * 60}`
     onSelect(slug)
   }
 

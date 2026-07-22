@@ -1,10 +1,7 @@
 import type { FacturaCompleta, DatosEmisor, DatosReceptor, DatosFactura, LineaFactura } from "./types"
 
-// Dynamic import to avoid pdf-parse v1 test file loading issue
-async function loadPdfParse() {
-  const mod = await import("pdf-parse")
-  return mod.default
-}
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const loadPdfParse = () => require("pdf-parse/lib/pdf-parse")
 
 export async function parsePdf(pdfBuffer: Buffer): Promise<FacturaCompleta> {
   const pdfParse = await loadPdfParse()
@@ -68,7 +65,7 @@ function extractFacturaFromText(text: string): DatosFactura {
     numeroFactura: numeroMatch?.[1]?.trim() || "",
     fechaEmision: fechaMatch?.[1]?.trim() || "",
     tipoDocumento: "factura",
-    moneda: monedaMatch?.[1]?.toUpperCase() || "EUR",
+    moneda: monedaMatch?.[1]?.toUpperCase() || "MXN",
     baseImponible: parseAmount(baseMatch?.[1]),
     tipoIva: ivaMatch?.[1] ? parseInt(ivaMatch[1]) : 21,
     cuotaIva: parseAmount(ivaMatch?.[2]),

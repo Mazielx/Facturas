@@ -14,7 +14,10 @@ interface Factura {
   tipo_iva: number
   cuota_iva: number
   total: number
+  total_convertido: number
   moneda: string
+  moneda_original: string
+  moneda_default: string
   estado: string
   confianza_nivel: string
   confianza_score: number
@@ -50,14 +53,6 @@ export default function FacturasContent() {
 
   const [searchInput, setSearchInput] = useState(search)
 
-  useEffect(() => {
-    if (searchInput === search) return
-    const timer = setTimeout(() => {
-      router.push(buildUrl({ search: searchInput }))
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [searchInput])
-
   const buildUrl = useCallback(
     (overrides: Record<string, string>) => {
       const params = new URLSearchParams()
@@ -69,6 +64,14 @@ export default function FacturasContent() {
     },
     [search, fechaDesde, fechaHasta, emisor, estado, moneda, confianza, revision, etiqueta]
   )
+
+  useEffect(() => {
+    if (searchInput === search) return
+    const timer = setTimeout(() => {
+      router.push(buildUrl({ search: searchInput }))
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [searchInput, search, buildUrl, router])
 
   useEffect(() => {
     const load = async () => {
@@ -118,8 +121,22 @@ export default function FacturasContent() {
     window.location.href = `/api/facturas/export?${params.toString()}`
   }
 
-  const formatCurrency = (amount: number, currency: string = "EUR") =>
-    new Intl.NumberFormat("es-ES", { style: "currency", currency }).format(amount)
+  const toggleEstado = async (facturaId: number, current: string) => {
+    const newEstado = current === "pagada" ? "pendiente" : "pagada"
+    const res = await fetch(`/api/facturas/${facturaId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ estado: newEstado }),
+    })
+    if (res.ok) {
+      setFacturas((prev) =>
+        prev.map((f) => (f.id === facturaId ? { ...f, estado: newEstado } : f))
+      )
+    }
+  }
+
+  const formatCurrency = (amount: number, currency: string = "MXN") =>
+    new Intl.NumberFormat("es-MX", { style: "currency", currency }).format(amount)
 
   const formatDate = (dateStr: string) => {
     try {
@@ -140,10 +157,10 @@ export default function FacturasContent() {
 
   const confianzaBadge = (nivel: string) => {
     const colors: Record<string, string> = {
+      confiable: "bg-emerald-100 text-emerald-800",
       alta: "bg-green-100 text-green-800",
       media: "bg-yellow-100 text-yellow-800",
       baja: "bg-orange-100 text-orange-800",
-      error: "bg-red-100 text-red-800",
     }
     return colors[nivel] || "bg-zinc-100 text-zinc-600"
   }
@@ -276,10 +293,10 @@ export default function FacturasContent() {
                 className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
               >
                 <option value="">Todas</option>
+                <option value="confiable">Confiable</option>
                 <option value="alta">Alta</option>
                 <option value="media">Media</option>
                 <option value="baja">Baja</option>
-                <option value="error">Error</option>
               </select>
             </div>
             <div>
@@ -352,15 +369,23 @@ export default function FacturasContent() {
                           {formatCurrency(f.cuota_iva, f.moneda)}
                         </td>
                         <td className="px-5 py-3 text-right text-zinc-900 dark:text-zinc-100 font-medium">
-                          {formatCurrency(f.total, f.moneda)}
+                          {f.total_convertido !== undefined
+                            ? formatCurrency(f.total_convertido, f.moneda_default || "MXN")
+                            : formatCurrency(f.total, f.moneda)}
                         </td>
                         <td className="px-5 py-3 text-zinc-500 dark:text-zinc-400 text-xs font-mono">
-                          {f.moneda}
+                          {f.moneda_default || f.moneda}
                         </td>
                         <td className="px-5 py-3">
-                          <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${estadoBadge(f.estado)}`}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleEstado(f.id, f.estado)
+                            }}
+                            className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 ${estadoBadge(f.estado)}`}
+                          >
                             {f.estado}
-                          </span>
+                          </button>
                         </td>
                         <td className="px-5 py-3">
                           <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${confianzaBadge(f.confianza_nivel)}`}>

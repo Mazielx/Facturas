@@ -5,29 +5,32 @@ import type { FacturaCompleta, ExtractionResult } from "./types"
 import crypto from "crypto"
 
 export function calcularConfianza(datos: FacturaCompleta, source: "xml" | "pdf"): number {
-  let score = source === "xml" ? 1.0 : 0.7
+  let score = source === "xml" ? 1.0 : 0.85
 
-  if (!datos.emisor.nif) score -= 0.15
-  if (!datos.emisor.direccion) score -= 0.10
-  if (!datos.receptor.nif) score -= 0.10
-  if (datos.factura.total <= 0) score -= 0.20
-  if (datos.lineas.length === 0) score -= 0.15
-  if (!datos.factura.fechaEmision) score -= 0.20
+  if (!datos.emisor.nif) score -= 0.05
+  if (!datos.receptor.nif) score -= 0.05
+  if (datos.factura.total <= 0) score -= 0.15
+  if (datos.lineas.length === 0) score -= 0.10
+  if (!datos.factura.fechaEmision) score -= 0.10
 
   const expectedIva = datos.factura.baseImponible * (datos.factura.tipoIva / 100)
-  if (Math.abs(expectedIva - datos.factura.cuotaIva) > 0.01) score -= 0.15
+  if (datos.factura.cuotaIva > 0 && Math.abs(expectedIva - datos.factura.cuotaIva) > 1) {
+    score -= 0.10
+  }
 
   const expectedTotal = datos.factura.baseImponible + datos.factura.cuotaIva - datos.factura.descuento
-  if (Math.abs(expectedTotal - datos.factura.total) > 0.01) score -= 0.15
+  if (Math.abs(expectedTotal - datos.factura.total) > 1) {
+    score -= 0.10
+  }
 
   return Math.max(0, Math.min(1, score))
 }
 
-export function nivelConfianza(score: number): "alta" | "media" | "baja" | "error" {
-  if (score >= 0.85) return "alta"
-  if (score >= 0.65) return "media"
-  if (score >= 0.4) return "baja"
-  return "error"
+export function nivelConfianza(score: number): "confiable" | "alta" | "media" | "baja" {
+  if (score >= 0.88) return "confiable"
+  if (score >= 0.66) return "alta"
+  if (score >= 0.33) return "media"
+  return "baja"
 }
 
 export function detectarDuplicados(
@@ -97,25 +100,31 @@ export async function processAttachment(
     const confianzaScore = calcularConfianza(datos, source)
     const confianzaNivel = nivelConfianza(confianzaScore)
 
-    const facturaId = insertFactura(db, datos, {
-      emailId,
-      emailSubject,
-      emailFrom,
-      emailDate,
-      filename,
-      mimeType,
-      contentHash,
-      content,
-      confianzaScore,
-      confianzaNivel,
+    const insertAll = db.transaction(() => {
+      const facturaId = insertFactura(db, datos, {
+        emailId,
+        emailSubject,
+        emailFrom,
+        emailDate,
+        filename,
+        mimeType,
+        contentHash,
+        content,
+        confianzaScore,
+        confianzaNivel,
+      })
+
+      const duplicados = detectarDuplicados(db, facturaId, datos)
+      for (const dup of duplicados) {
+        db.prepare(
+          "INSERT INTO duplicados_potenciales (factura_id, duplicada_de_id, razon, score) VALUES (?, ?, ?, ?)"
+        ).run(facturaId, dup.facturaId, dup.razon, dup.score)
+      }
+
+      return facturaId
     })
 
-    const duplicados = detectarDuplicados(db, facturaId, datos)
-    for (const dup of duplicados) {
-      db.prepare(
-        "INSERT INTO duplicados_potenciales (factura_id, duplicada_de_id, razon, score) VALUES (?, ?, ?, ?)"
-      ).run(facturaId, dup.facturaId, dup.razon, dup.score)
-    }
+    const facturaId = insertAll()
 
     return { success: true, facturaId, datos }
   } catch (error) {

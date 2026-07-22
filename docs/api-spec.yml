@@ -1,0 +1,1134 @@
+openapi: 3.0.0
+info:
+  title: Facturas API
+  description: |
+    REST API for the Facturas multi-tenant invoice management system. Built with Next.js App Router, SQLite (better-sqlite3), and multi-tenant architecture.
+
+    ## Features
+    - Multi-tenant invoice management with isolated databases per business
+    - Automatic invoice extraction from Gmail attachments (XML/PDF)
+    - Confidence scoring and duplicate detection for extracted invoices
+    - Full-text search with SQLite FTS5
+    - CSV and XLSX export
+    - Tags/labels system for invoice categorization
+    - API key authentication for public API access
+    - Role-based access control (admin/negocio)
+
+    ## Authentication
+    - Session-based auth via httpOnly cookies (`session_id`)
+    - API key auth for `/api/v1/*` endpoints via `Authorization: Bearer <api_key>`
+    - Multi-tenant isolation via `negocio_slug` cookie
+
+  version: 0.1.0
+  contact:
+    name: Facturas Development Team
+  license:
+    name: ISC
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+
+paths:
+  /api/auth/login:
+    post:
+      summary: Login
+      description: Authenticate user with email and password, create session cookie
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        '200':
+          description: Login successful, session cookie set
+        '401':
+          description: Invalid credentials
+
+  /api/auth/register:
+    post:
+      summary: Register new user
+      description: Create a new user account (admin only)
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                nombre:
+                  type: string
+                role:
+                  type: string
+                  enum: [admin, negocio]
+                negocio_id:
+                  type: integer
+              required: [email, password, nombre]
+      responses:
+        '201':
+          description: User created
+        '400':
+          description: Validation error
+        '403':
+          description: Not authorized
+
+  /api/auth/logout:
+    post:
+      summary: Logout
+      description: Delete session and clear cookie
+      tags: [Auth]
+      responses:
+        '200':
+          description: Logged out successfully
+
+  /api/auth/callback:
+    get:
+      summary: Google OAuth callback
+      description: Handle Google OAuth2 callback for Gmail integration
+      tags: [Auth]
+      parameters:
+        - in: query
+          name: code
+          schema:
+            type: string
+          description: OAuth2 authorization code
+      responses:
+        '200':
+          description: OAuth tokens stored in cookie
+        '400':
+          description: Invalid callback
+
+  /api/negocios:
+    get:
+      summary: List negocios
+      description: Get all negocios (admin sees all, negocio user sees own)
+      tags: [Negocios]
+      responses:
+        '200':
+          description: Negocios list with active slug and user info
+    post:
+      summary: Create negocio
+      description: Create a new business (admin only)
+      tags: [Negocios]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                email:
+                  type: string
+              required: [nombre]
+      responses:
+        '201':
+          description: Negocio created
+        '409':
+          description: Nombre already exists
+
+  /api/negocios/{slug}:
+    patch:
+      summary: Update negocio
+      description: Update negocio settings (nombre, email, moneda_default). Nombre and email changes limited to once every 6 months.
+      tags: [Negocios]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                email:
+                  type: string
+                moneda_default:
+                  type: string
+                  default: MXN
+      responses:
+        '200':
+          description: Negocio updated
+        '400':
+          description: Validation error (e.g. name change too soon)
+
+  /api/negocios/{slug}/select:
+    post:
+      summary: Select active negocio
+      description: Set the active negocio cookie for the session
+      tags: [Negocios]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Negocio selected
+
+  /api/facturas:
+    get:
+      summary: List facturas
+      description: |
+        Retrieve paginated list of facturas for the active tenant.
+        Supports filtering by date range, emisor, estado, moneda, confianza level, revision status, and tags.
+        Full-text search via FTS5 when available.
+        Currency conversion applied based on negocio default currency.
+      tags: [Facturas]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Full-text search (FTS5) or LIKE fallback
+        - in: query
+          name: fecha_desde
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: fecha_hasta
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: emisor
+          schema:
+            type: string
+          description: Filter by emisor name (LIKE)
+        - in: query
+          name: estado
+          schema:
+            type: string
+            enum: [pendiente, pagada, cancelada]
+        - in: query
+          name: moneda
+          schema:
+            type: string
+        - in: query
+          name: confianza
+          schema:
+            type: string
+            enum: [alta, media, baja, error]
+        - in: query
+          name: revision
+          schema:
+            type: integer
+            enum: [0, 1]
+        - in: query
+          name: etiqueta
+          schema:
+            type: string
+          description: Filter by tag name
+      responses:
+        '200':
+          description: Paginated facturas with currency conversion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  facturas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Factura'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          description: No active tenant
+
+  /api/facturas/{id}:
+    get:
+      summary: Get factura detail
+      description: Get a single factura with its line items and attachments
+      tags: [Facturas]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Factura with lineas and adjuntos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  factura:
+                    $ref: '#/components/schemas/Factura'
+                  lineas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LineaFactura'
+                  adjuntos:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Adjunto'
+        '404':
+          description: Factura not found
+    patch:
+      summary: Update factura
+      description: Update factura fields (currently supports estado changes)
+      tags: [Facturas]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                estado:
+                  type: string
+                  enum: [pendiente, pagada, cancelada]
+      responses:
+        '200':
+          description: Factura updated
+        '400':
+          description: Invalid estado or no fields
+        '404':
+          description: Factura not found
+
+  /api/facturas/stats:
+    get:
+      summary: Get statistics
+      description: |
+        Dashboard statistics for the active tenant.
+        Includes: total facturas, total importe, IVA totals, breakdowns by estado/moneda/mes/emisor,
+        confidence level distribution, revision count, and duplicate count.
+        All monetary values converted to negocio default currency.
+      tags: [Facturas]
+      responses:
+        '200':
+          description: Statistics object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stats'
+
+  /api/facturas/export:
+    get:
+      summary: Export facturas
+      description: Export facturas as CSV or XLSX with the same filters as the list endpoint
+      tags: [Facturas]
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [csv, xlsx]
+            default: csv
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: fecha_desde
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: fecha_hasta
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: emisor
+          schema:
+            type: string
+        - in: query
+          name: estado
+          schema:
+            type: string
+            enum: [pendiente, pagada, cancelada]
+        - in: query
+          name: moneda
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CSV or XLSX file download
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /api/facturas/{id}/adjunto:
+    get:
+      summary: Download attachment
+      description: Download the original invoice attachment (PDF/XML) for a factura
+      tags: [Facturas]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Attachment file
+        '404':
+          description: Attachment not found
+
+  /api/facturas/{id}/revision:
+    put:
+      summary: Toggle revision status
+      description: Mark or unmark a factura as requiring manual review, with optional notes
+      tags: [Facturas]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                requiere_revision:
+                  type: boolean
+                notas:
+                  type: string
+      responses:
+        '200':
+          description: Revision status updated
+
+  /api/facturas/{id}/duplicados:
+    get:
+      summary: Get potential duplicates
+      description: Get list of potential duplicates for a specific factura
+      tags: [Facturas]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of potential duplicates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    factura_id:
+                      type: integer
+                    duplicada_de_id:
+                      type: integer
+                    razon:
+                      type: string
+                      enum: [mismo_numero, mismo_monto_fecha, hash_exacto]
+                    score:
+                      type: number
+
+  /api/facturas/{id}/etiquetas:
+    get:
+      summary: Get tags for factura
+      tags: [Facturas]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Tags assigned to this factura
+    post:
+      summary: Assign tag to factura
+      tags: [Facturas]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                etiqueta_id:
+                  type: integer
+              required: [etiqueta_id]
+      responses:
+        '201':
+          description: Tag assigned
+        '409':
+          description: Tag already assigned
+    delete:
+      summary: Remove tag from factura
+      tags: [Facturas]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: etiqueta_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Tag removed
+
+  /api/etiquetas:
+    get:
+      summary: List all tags
+      tags: [Etiquetas]
+      responses:
+        '200':
+          description: All tags for the active tenant
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Etiqueta'
+    post:
+      summary: Create tag
+      tags: [Etiquetas]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                color:
+                  type: string
+                  default: '#6b7280'
+              required: [nombre]
+      responses:
+        '201':
+          description: Tag created
+        '409':
+          description: Tag name already exists
+    delete:
+      summary: Delete tag
+      tags: [Etiquetas]
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Tag deleted
+
+  /api/extract:
+    post:
+      summary: Extract invoices from Gmail
+      description: |
+        Trigger extraction of invoices from Gmail attachments (PDF/XML).
+        Downloads attachments via Gmail API, parses them, calculates confidence scores,
+        detects duplicates, and stores in the tenant database.
+        Sends email notification to admin if errors occur.
+      tags: [Extraction]
+      responses:
+        '200':
+          description: Extraction completed with processed/error counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  processed:
+                    type: integer
+                  errors:
+                    type: integer
+                  details:
+                    type: object
+                    properties:
+                      processed:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            emailId:
+                              type: string
+                            filename:
+                              type: string
+                            facturaId:
+                              type: integer
+                      errors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            emailId:
+                              type: string
+                            filename:
+                              type: string
+                            error:
+                              type: string
+        '401':
+          description: Gmail tokens expired or not authenticated
+
+  /api/emails:
+    get:
+      summary: List Gmail emails
+      description: List recent emails with attachments from Gmail
+      tags: [Gmail]
+      responses:
+        '200':
+          description: Email list
+        '401':
+          description: Gmail not authenticated
+
+  /api/admin/usuarios:
+    get:
+      summary: List users (admin only)
+      tags: [Admin]
+      responses:
+        '200':
+          description: All users
+        '403':
+          description: Not admin
+    post:
+      summary: Create user (admin only)
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                nombre:
+                  type: string
+                role:
+                  type: string
+                  enum: [admin, negocio]
+                negocio_id:
+                  type: integer
+              required: [email, password, nombre]
+      responses:
+        '201':
+          description: User created
+
+  /api/admin/backup:
+    post:
+      summary: Trigger backup
+      description: Manually trigger a database backup
+      tags: [Admin]
+      responses:
+        '200':
+          description: Backup created
+        '403':
+          description: Not admin
+
+  /api/admin/api-keys:
+    get:
+      summary: List API keys (admin only)
+      tags: [Admin]
+      responses:
+        '200':
+          description: API keys list
+    post:
+      summary: Create API key (admin only)
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                negocio_id:
+                  type: integer
+                permisos:
+                  type: string
+                  enum: [read, read,write]
+                  default: read
+              required: [nombre, negocio_id]
+      responses:
+        '201':
+          description: API key created (key shown once)
+
+  /api/v1/facturas:
+    get:
+      summary: List facturas (public API)
+      description: List facturas via API key authentication. Same filters as internal endpoint.
+      tags: [Public API]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: estado
+          schema:
+            type: string
+            enum: [pendiente, pagada, cancelada]
+      responses:
+        '200':
+          description: Paginated facturas
+        '401':
+          description: Invalid or missing API key
+    post:
+      summary: Create factura (public API, write permission required)
+      tags: [Public API]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Factura'
+      responses:
+        '201':
+          description: Factura created
+        '401':
+          description: Invalid API key or insufficient permissions
+
+  /api/v1/facturas/{id}:
+    get:
+      summary: Get factura detail (public API)
+      tags: [Public API]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Factura detail
+        '404':
+          description: Not found
+
+  /api/v1/facturas/export:
+    get:
+      summary: Export facturas (public API)
+      tags: [Public API]
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [csv, xlsx]
+      responses:
+        '200':
+          description: Exported file
+
+  /api/v1/stats:
+    get:
+      summary: Get statistics (public API)
+      tags: [Public API]
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Statistics
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: "Bearer <api_key>"
+
+  schemas:
+    Factura:
+      type: object
+      properties:
+        id:
+          type: integer
+        emisor_nombre:
+          type: string
+        emisor_nif:
+          type: string
+          nullable: true
+        emisor_direccion:
+          type: string
+          nullable: true
+        emisor_poblacion:
+          type: string
+          nullable: true
+        emisor_provincia:
+          type: string
+          nullable: true
+        emisor_cp:
+          type: string
+          nullable: true
+        emisor_pais:
+          type: string
+        emisor_email:
+          type: string
+          nullable: true
+        emisor_telefono:
+          type: string
+          nullable: true
+        receptor_nombre:
+          type: string
+          nullable: true
+        receptor_nif:
+          type: string
+          nullable: true
+        receptor_direccion:
+          type: string
+          nullable: true
+        numero_factura:
+          type: string
+        fecha_emision:
+          type: string
+          format: date
+        fecha_vencimiento:
+          type: string
+          format: date
+          nullable: true
+        tipo_documento:
+          type: string
+          default: factura
+        moneda:
+          type: string
+          default: MXN
+        base_imponible:
+          type: number
+        tipo_iva:
+          type: number
+          default: 21.0
+        cuota_iva:
+          type: number
+        total:
+          type: number
+        descuento:
+          type: number
+          default: 0
+        retencion:
+          type: number
+          default: 0
+        neto:
+          type: number
+          nullable: true
+        metodo_pago:
+          type: string
+          nullable: true
+        estado:
+          type: string
+          enum: [pendiente, pagada, cancelada]
+          default: pendiente
+        confianza_score:
+          type: number
+          description: Confidence score 0.0 to 1.0
+        confianza_nivel:
+          type: string
+          enum: [alta, media, baja, error]
+          default: alta
+        requiere_revision:
+          type: integer
+          enum: [0, 1]
+          default: 0
+        revision_notas:
+          type: string
+          nullable: true
+        total_original:
+          type: number
+          description: Total in original currency (when currency conversion applied)
+        moneda_original:
+          type: string
+          description: Original currency code
+        total_convertido:
+          type: number
+          description: Total converted to negocio default currency
+      required: [emisor_nombre, numero_factura, fecha_emision, base_imponible, cuota_iva, total]
+
+    LineaFactura:
+      type: object
+      properties:
+        id:
+          type: integer
+        factura_id:
+          type: integer
+        numero_linea:
+          type: integer
+        descripcion:
+          type: string
+        cantidad:
+          type: number
+          default: 1
+        precio_unitario:
+          type: number
+        descuento:
+          type: number
+          default: 0
+        tipo_iva:
+          type: number
+          default: 21.0
+        subtotal:
+          type: number
+        total:
+          type: number
+
+    Adjunto:
+      type: object
+      properties:
+        id:
+          type: integer
+        factura_id:
+          type: integer
+        filename:
+          type: string
+        mime_type:
+          type: string
+        size:
+          type: integer
+        attachment_id:
+          type: string
+        content_hash:
+          type: string
+
+    Etiqueta:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        color:
+          type: string
+          default: '#6b7280'
+        created_at:
+          type: string
+          format: date-time
+
+    Negocio:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        slug:
+          type: string
+        email:
+          type: string
+          nullable: true
+        moneda_default:
+          type: string
+          default: MXN
+        created_at:
+          type: string
+        updated_at:
+          type: string
+
+    Usuario:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        nombre:
+          type: string
+        role:
+          type: string
+          enum: [admin, negocio]
+        negocio_id:
+          type: integer
+          nullable: true
+        activo:
+          type: integer
+          enum: [0, 1]
+        profile_photo_url:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+        updated_at:
+          type: string
+
+    Stats:
+      type: object
+      properties:
+        moneda:
+          type: string
+          description: Negocio default currency
+        resumen:
+          type: object
+          properties:
+            totalFacturas:
+              type: integer
+            totalImporte:
+              type: number
+            totalIva:
+              type: number
+        porEstado:
+          type: array
+          items:
+            type: object
+            properties:
+              estado:
+                type: string
+              count:
+                type: integer
+              sum:
+                type: number
+        porMoneda:
+          type: array
+          items:
+            type: object
+            properties:
+              moneda:
+                type: string
+              count:
+                type: integer
+              sum:
+                type: number
+        porMes:
+          type: array
+          items:
+            type: object
+            properties:
+              mes:
+                type: string
+                description: YYYY-MM format
+              count:
+                type: integer
+              sum:
+                type: number
+        topEmisores:
+          type: array
+          items:
+            type: object
+            properties:
+              emisor_nombre:
+                type: string
+              count:
+                type: integer
+              sum:
+                type: number
+        porConfianza:
+          type: array
+          items:
+            type: object
+            properties:
+              confianza_nivel:
+                type: string
+              count:
+                type: integer
+        requierenRevision:
+          type: integer
+        duplicados:
+          type: integer
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+tags:
+  - name: Auth
+    description: Authentication and session management
+  - name: Negocios
+    description: Multi-tenant business management
+  - name: Facturas
+    description: Invoice CRUD, filtering, export, and management
+  - name: Etiquetas
+    description: Tags/labels for invoice categorization
+  - name: Extraction
+    description: Gmail-based invoice extraction and processing
+  - name: Gmail
+    description: Gmail integration for email listing
+  - name: Admin
+    description: Admin-only operations (users, backups, API keys)
+  - name: Public API
+    description: API key-authenticated public endpoints (v1)

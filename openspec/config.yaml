@@ -1,0 +1,31 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Next.js 16 (App Router), TypeScript, SQLite (better-sqlite3), Tailwind CSS 4, Vitest
+  Architecture: Multi-tenant monolith with isolated SQLite databases per business
+  Domain: Multi-tenant invoice management system (facturas)
+  Key entities: Factura, LineaFactura, Adjunto, Negocio, Usuario, Sesion, Etiqueta, ApiKey
+  Database: SQLite with WAL mode, FTS5 for full-text search
+  Auth: bcrypt + httpOnly cookies, role-based (admin/negocio)
+  Deployment: Railway
+  Testing: Vitest + @testing-library/react
+  Code conventions: English only, TypeScript strict, camelCase variables, PascalCase types, snake_case SQL columns
+
+rules:
+  proposal:
+    - Keep proposals under 500 words
+    - Always include a "Non-goals" section
+    - Reference existing code patterns when relevant
+  tasks:
+    - Break tasks into chunks of max 2 hours
+    - Each task must include test verification steps
+    - Tasks must follow the mandatory steps from openspec-tasks-mandatory-steps.md
+  verification:
+    - Each task must have lint/typecheck gate
+    - Tests must pass before moving to next task
+    - Adversarial review before marking complete
+  workflow:
+    - Explore existing patterns before coding
+    - Plan with todo list before implementation
+    - Verify incrementally (don't wait until end)
+    - Update docs when behavior changes

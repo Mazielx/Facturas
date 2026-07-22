@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const publicPaths = ["/login"]
-const publicApiPrefixes = ["/api/auth/login", "/api/auth/logout"]
-const adminPaths = ["/admin"]
-const adminApiPrefixes = ["/api/admin"]
+const publicApiPrefixes = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/logout",
+  "/api/auth/callback",
+  "/api/auth/request",
+]
 
 export default function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname
 
-  if (path.startsWith("/_next") || path.startsWith("/favicon") || path === "/") {
+  if (path.startsWith("/_next") || path.startsWith("/favicon")) {
     return NextResponse.next()
   }
 
-  if (publicPaths.some((p) => path.startsWith(p))) {
+  if (publicPaths.some((p) => path === p || path.startsWith(p + "/"))) {
     return NextResponse.next()
   }
 
@@ -33,5 +37,5 @@ export default function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.ico/).*)"],
 }

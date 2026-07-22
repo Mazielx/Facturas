@@ -189,12 +189,24 @@ export default function FacturaDetailPage({
     setEtiquetas(etiquetas.filter((e) => e.id !== etiquetaId))
   }
 
+  const handleEstadoChange = async (newEstado: string) => {
+    if (!factura) return
+    const res = await fetch(`/api/facturas/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ estado: newEstado }),
+    })
+    if (res.ok) {
+      setFactura({ ...factura, estado: newEstado })
+    }
+  }
+
   const confianzaBadge = (nivel: string) => {
     const colors: Record<string, string> = {
+      confiable: "bg-emerald-100 text-emerald-800",
       alta: "bg-green-100 text-green-800",
       media: "bg-yellow-100 text-yellow-800",
       baja: "bg-orange-100 text-orange-800",
-      error: "bg-red-100 text-red-800",
     }
     return colors[nivel] || "bg-zinc-100 text-zinc-600"
   }
@@ -256,9 +268,20 @@ export default function FacturaDetailPage({
             <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
               {factura.numero_factura}
             </h1>
-            <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${estadoBadge(factura.estado)}`}>
+            <button
+              onClick={() => handleEstadoChange(factura.estado === "pagada" ? "pendiente" : "pagada")}
+              className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 ${estadoBadge(factura.estado)}`}
+            >
               {factura.estado}
-            </span>
+            </button>
+            {factura.estado !== "cancelada" && (
+              <button
+                onClick={() => handleEstadoChange("cancelada")}
+                className="inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-800"
+              >
+                Cancelar
+              </button>
+            )}
             <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${confianzaBadge(factura.confianza_nivel)}`}>
               Confianza: {factura.confianza_nivel} ({Math.round(factura.confianza_score * 100)}%)
             </span>
