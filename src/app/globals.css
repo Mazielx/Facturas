@@ -24,3 +24,56 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #27272a;
+  border-color: #3f3f46;
+  color: #e4e4e7;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #71717a;
+}
+
+.dark label {
+  color: #d4d4d8;
+}
+
+.dark .bg-red-50 {
+  background-color: rgba(127, 29, 29, 0.2);
+}
+
+.dark .border-red-200 {
+  border-color: rgba(153, 27, 27, 0.5);
+}
+
+.dark .text-red-700 {
+  color: #fca5a5;
+}
+
+.dark .bg-blue-50 {
+  background-color: rgba(30, 58, 138, 0.2);
+}
+
+.dark .border-blue-200 {
+  border-color: rgba(37, 99, 235, 0.5);
+}
+
+.dark .text-blue-700 {
+  color: #93c5fd;
+}
+
+.dark .bg-emerald-50 {
+  background-color: rgba(6, 78, 59, 0.2);
+}
+
+.dark .border-emerald-200 {
+  border-color: rgba(5, 150, 105, 0.5);
+}
+
+.dark .text-emerald-700 {
+  color: #6ee7b7;
+}
