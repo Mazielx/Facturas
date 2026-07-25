@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { verifyPassword, createSession, getUsuarioByEmail } from "@/lib/auth"
-import { getAllNegocios } from "@/db"
+import { verifyPassword, createSession, getUsuarioByEmail, createUsuario as authCreateUsuario } from "@/lib/auth"
+import { getAllNegocios, createNegocio } from "@/db"
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +14,31 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const usuario = getUsuarioByEmail(email)
+    let usuario = getUsuarioByEmail(email)
+
+    if (!usuario) {
+      const adminEmail = process.env.ADMIN_EMAIL
+      const adminPassword = process.env.ADMIN_PASSWORD
+      const adminNombre = process.env.ADMIN_NOMBRE || "Admin"
+
+      if (email === adminEmail && password === adminPassword) {
+        const allNegocios = getAllNegocios()
+        let negocioId: number
+        if (allNegocios.length > 0) {
+          negocioId = allNegocios[0].id
+        } else {
+          const neg = createNegocio("Mi Empresa", "mi-empresa", email)
+          negocioId = neg.id
+        }
+        usuario = await authCreateUsuario(email, password, adminNombre, "admin", negocioId) as any
+        console.log(`[login] Auto-created admin user: ${email}`)
+      } else {
+        return NextResponse.json(
+          { error: "Credenciales invalidas" },
+          { status: 401 }
+        )
+      }
+    }
 
     if (!usuario) {
       return NextResponse.json(
