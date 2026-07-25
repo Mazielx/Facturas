@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { setClientCookie } from "@/lib/cookie-utils"
+import ThemeToggle from "../components/theme-toggle"
 
 export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login")
@@ -55,8 +56,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-950">
+      <div className="absolute top-4 right-4"><ThemeToggle /></div>
+      <div className="w-full max-w-md p-8 bg-white dark:bg-zinc-900 rounded-lg shadow-md">
         <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">
           {mode === "login" ? "Iniciar Sesion" : "Crear Cuenta"}
         </h1>

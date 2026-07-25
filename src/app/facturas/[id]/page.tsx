@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from "react"
 import Link from "next/link"
+import ThemeToggle from "../../components/theme-toggle"
 
 interface LineaFactura {
   id: number
@@ -291,16 +292,19 @@ export default function FacturaDetailPage({
               </span>
             ) : null}
           </div>
-          {adjuntos.length > 0 && (
-            <a
-              href={`/api/facturas/${factura.id}/adjunto`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm px-4 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-            >
-              Descargar PDF
-            </a>
-          )}
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            {adjuntos.length > 0 && (
+              <a
+                href={`/api/facturas/${factura.id}/adjunto`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm px-4 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Descargar PDF
+              </a>
+            )}
+          </div>
         </div>
       </header>
 

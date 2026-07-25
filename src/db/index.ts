@@ -1,6 +1,7 @@
 import Database from "better-sqlite3"
 import path from "path"
 import fs from "fs"
+import bcrypt from "bcrypt"
 import { initializeSchema } from "./schema"
 
 const DATA_DIR = path.join(process.cwd(), "data")
@@ -17,8 +18,34 @@ export function getMainDb(): Database.Database {
     mainDb.pragma("journal_mode = WAL")
     mainDb.pragma("foreign_keys = ON")
     initializeMainSchema(mainDb)
+    seedAdminIfEmpty(mainDb)
   }
   return mainDb
+}
+
+function seedAdminIfEmpty(db: Database.Database): void {
+  const count = db.prepare("SELECT COUNT(*) as c FROM usuarios").get() as { c: number }
+  if (count.c > 0) return
+
+  const email = process.env.ADMIN_EMAIL
+  const password = process.env.ADMIN_PASSWORD
+  const nombre = process.env.ADMIN_NOMBRE || "Admin"
+
+  if (!email || !password) return
+
+  const slug = "mi-empresa"
+  const existingNegocio = db.prepare("SELECT id FROM negocios WHERE slug = ?").get(slug) as { id: number } | undefined
+  let negocioId: number
+  if (existingNegocio) {
+    negocioId = existingNegocio.id
+  } else {
+    const result = db.prepare("INSERT INTO negocios (nombre, slug, moneda_default) VALUES (?, ?, ?)").run("Mi Empresa", slug, "MXN")
+    negocioId = result.lastInsertRowid as number
+  }
+
+  const passwordHash = bcrypt.hashSync(password, 12)
+  db.prepare("INSERT INTO usuarios (email, password_hash, nombre, role, negocio_id) VALUES (?, ?, ?, ?, ?)").run(email, passwordHash, nombre, "admin", negocioId)
+  console.log(`[seed] Admin user created: ${email}`)
 }
 
 function initializeMainSchema(db: Database.Database): void {

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { deleteClientCookie } from "@/lib/cookie-utils"
+import ThemeToggle from "./components/theme-toggle"
 import NegocioSelector from "./negocio-selector"
 import MonthlySpending from "./components/charts/monthly-spending"
 import TopProviders from "./components/charts/top-providers"
@@ -305,6 +306,7 @@ export default function Home() {
             >
               Ver todas
             </Link>
+            <ThemeToggle />
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen(!menuOpen)}

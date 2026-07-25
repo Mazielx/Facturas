@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { deleteClientCookie } from "@/lib/cookie-utils"
+import ThemeToggle from "../components/theme-toggle"
 
 export default function ConfiguracionPage() {
   const [gmailConnected, setGmailConnected] = useState(false)
@@ -33,6 +34,7 @@ export default function ConfiguracionPage() {
             ← Inicio
           </Link>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Configuración</h1>
+          <div className="ml-auto"><ThemeToggle /></div>
         </div>
       </header>
 

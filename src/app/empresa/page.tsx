@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
+import ThemeToggle from "../components/theme-toggle"
 
 interface NegocioInfo {
   id: number
@@ -261,6 +262,7 @@ export default function EmpresaPage() {
             ← Inicio
           </Link>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Mi empresa</h1>
+          <div className="ml-auto"><ThemeToggle /></div>
         </div>
       </header>
 

@@ -235,6 +235,48 @@ My timeframe: [How much time I have]
 Please create a learning plan.
 ```
 
+### UI Refinement (Progressive Disclosure)
+```
+The [page] has too many inputs visible at once.
+Change it so [field] is hidden by default.
+Show it only when user clicks a "[Button label]" button.
+Each section needs its own save/cancel flow.
+
+Current state: [What it looks like now]
+Desired state: [What it should look like]
+```
+**Context:** Settings pages with rarely-changing fields
+**Result:** Less cognitive load, cleaner UI
+
+### Deployment Debugging (Layer-by-Layer)
+```
+[Feature] works locally but fails on [platform].
+
+Check these layers in order:
+1. Code correctness (compiles? types right?)
+2. Build artifacts (is deployed build current?)
+3. Cookie/header handling (SameSite, Secure)
+4. CDN caching (stale version?)
+5. Platform issues (ephemeral storage, env vars)
+```
+**Context:** Feature works on localhost but breaks in production
+**Result:** Systematic debugging instead of guessing
+
+### Iterative Threshold Tuning
+```
+The [scoring] system is too [strict/lenient].
+Currently: [Thresholds and their effect]
+User feedback: [What user sees]
+
+Adjust so:
+- [Expected for X% of cases]
+- [Expected for Y% of cases]
+
+Recalculate existing records after.
+```
+**Context:** Scoring labels don't match business expectations
+**Result:** Thresholds tuned to real-world usage
+
 ---
 
 ## Quick Fixes
@@ -246,6 +288,24 @@ Please create a learning plan.
 | AI misses the point | Rephrase with concrete example |
 | AI output is wrong format | Show desired format explicitly |
 | AI makes assumptions | State assumptions clearly |
+
+---
+
+## Pattern: SSR-Safe Client Features
+
+When adding client-side features to Next.js that need to persist state (like theme, language):
+
+```
+Problem: "Add dark mode toggle that persists across page loads"
+
+Correct approach:
+1. Inline <script> in layout.tsx <head> that reads localStorage BEFORE React
+2. suppressHydrationWarning on <html> to prevent SSR mismatch
+3. React context (ThemeProvider) that syncs state + localStorage + DOM class
+4. Extract shared component FIRST, then add to all pages
+
+Common mistake: Using useEffect to set initial theme — causes flash of wrong theme
+```
 
 ---
 
@@ -264,4 +324,4 @@ Please create a learning plan.
 
 ---
 
-*Keep this card visible while working. Update with your own discoveries.*
+*Last updated: 2026-07-24*
