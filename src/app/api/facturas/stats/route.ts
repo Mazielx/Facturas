@@ -127,7 +127,7 @@ export async function GET() {
     )
 
     const duplicados = await dbGet<{ count: number }>(
-      "SELECT COUNT(DISTINCT factura_id) as count FROM duplicados_potenciales WHERE negocio_slug = ?",
+      "SELECT COUNT(DISTINCT dp.factura_id) as count FROM duplicados_potenciales dp JOIN facturas f ON dp.factura_id = f.id WHERE f.negocio_slug = ?",
       { "1": slug }
     )
 

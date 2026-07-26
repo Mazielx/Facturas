@@ -11,15 +11,20 @@ export function getDb(): Client {
   return client
 }
 
-function toArgs(args?: Record<string, unknown>): InValue[] {
+function toArgs(args?: Record<string, unknown>): InValue[] | Record<string, InValue> {
   if (!args || Object.keys(args).length === 0) return []
-  const keys = Object.keys(args).sort((a, b) => {
-    const na = parseInt(a)
-    const nb = parseInt(b)
-    if (!isNaN(na) && !isNaN(nb)) return na - nb
-    return a.localeCompare(b)
-  })
-  return keys.map((k) => args[k] as InValue)
+  const keys = Object.keys(args)
+  const isPositional = keys.every((k) => /^\d+$/.test(k))
+  if (isPositional) {
+    const sorted = keys.sort((a, b) => parseInt(a) - parseInt(b))
+    return sorted.map((k) => args[k] as InValue)
+  }
+  const result: Record<string, InValue> = {}
+  for (const k of keys) {
+    const name = k.startsWith("$") || k.startsWith(":") || k.startsWith("@") ? k : `$${k}`
+    result[name] = args[k] as InValue
+  }
+  return result
 }
 
 export async function dbExec(sql: string, args?: Record<string, unknown>) {

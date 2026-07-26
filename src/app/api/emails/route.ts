@@ -58,7 +58,7 @@ export async function GET() {
   }
 
   try {
-    const tokens: Credentials = JSON.parse(tokensCookie.value)
+    const tokens: Credentials = JSON.parse(decodeURIComponent(tokensCookie.value))
     const auth = getOAuth2ClientWithTokens(tokens)
 
     let refreshedTokens: Credentials | null = null

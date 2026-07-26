@@ -29,12 +29,15 @@ export async function POST() {
   const allProcessed: Array<{ emailId: string; filename: string; facturaId: number; cuenta: string }> = []
   const allErrors: Array<{ emailId: string; filename: string; error: string; cuenta: string }> = []
 
+  console.log("EXTRACT_START:", { slug, cuentaCount: cuentas.length, hasCookie: !!tokensCookie })
+
   async function processWithAuth(auth: ReturnType<typeof getOAuth2ClientWithTokens>, cuentaEmail: string) {
     let emailList
     try {
       emailList = await listEmailsWithAttachments(auth, 50)
     } catch (gmailError) {
       const msg = gmailError instanceof Error ? gmailError.message : "Error desconocido"
+      console.error(`Gmail list error [${cuentaEmail}]:`, msg)
       if (msg.includes("invalid_grant") || msg.includes("Token has been expired or revoked")) {
         allErrors.push({ emailId: "", filename: "", error: "Tokens expirados o revocados", cuenta: cuentaEmail })
         return
@@ -80,7 +83,9 @@ export async function POST() {
             allErrors.push({ emailId: email.id, filename: attachment.filename, error: extractionResult.error || "Error desconocido", cuenta: cuentaEmail })
           }
         } catch (error) {
-          allErrors.push({ emailId: email.id, filename: attachment.filename, error: error instanceof Error ? error.message : "Error desconocido", cuenta: cuentaEmail })
+          const errMsg = error instanceof Error ? error.message : "Error desconocido"
+          console.error(`Extract error [${email.id}/${attachment.filename}]:`, errMsg)
+          allErrors.push({ emailId: email.id, filename: attachment.filename, error: errMsg, cuenta: cuentaEmail })
         }
       }
     }
@@ -103,9 +108,17 @@ export async function POST() {
     }
 
     if (cuentas.length === 0 && tokensCookie) {
-      const tokens: Credentials = JSON.parse(tokensCookie.value)
-      const auth = getOAuth2ClientWithTokens(tokens)
-      await processWithAuth(auth, "cuenta_principal")
+      console.log("EXTRACT: Using gmail_tokens cookie, raw length:", tokensCookie.value.length)
+      try {
+        const decoded = decodeURIComponent(tokensCookie.value)
+        const tokens: Credentials = JSON.parse(decoded)
+        console.log("EXTRACT: Token keys:", Object.keys(tokens))
+        const auth = getOAuth2ClientWithTokens(tokens)
+        await processWithAuth(auth, "cuenta_principal")
+      } catch (tokenErr) {
+        console.error("EXTRACT: Token parse error:", tokenErr instanceof Error ? tokenErr.message : tokenErr)
+        allErrors.push({ emailId: "", filename: "", error: "Error parseando tokens de Gmail: " + (tokenErr instanceof Error ? tokenErr.message : "error desconocido"), cuenta: "cuenta_principal" })
+      }
     }
 
     if (allErrors.length > 0) {
@@ -117,6 +130,8 @@ export async function POST() {
         ).catch(() => {})
       }
     }
+
+    console.log("EXTRACT_RESULT:", JSON.stringify({ processed: allProcessed.length, errors: allErrors.length, errorDetails: allErrors }))
 
     return NextResponse.json({
       success: true,

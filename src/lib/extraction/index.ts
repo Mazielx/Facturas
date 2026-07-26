@@ -92,6 +92,18 @@ export async function processAttachment(
       return { success: false, error: `Tipo de archivo no soportado: ${mimeType}` }
     }
 
+    if (!datos.factura.numeroFactura || datos.factura.numeroFactura.trim() === "") {
+      datos.factura.numeroFactura = filename.replace(/\.[^.]+$/, "")
+    }
+
+    if (!datos.factura.fechaEmision || datos.factura.fechaEmision.trim() === "") {
+      datos.factura.fechaEmision = new Date().toISOString().slice(0, 10)
+    }
+
+    if (!datos.emisor.nombre || datos.emisor.nombre.trim() === "") {
+      datos.emisor.nombre = emailFrom || "Desconocido"
+    }
+
     const confianzaScore = calcularConfianza(datos, source)
     const confianzaNivel = nivelConfianza(confianzaScore)
 
