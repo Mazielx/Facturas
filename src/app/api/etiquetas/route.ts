@@ -8,8 +8,7 @@ export async function GET() {
     const tenant = await requireActiveTenant()
     await ensureSchema()
     const etiquetas = await dbAll(
-      "SELECT * FROM etiquetas WHERE negocio_slug = ? ORDER BY nombre",
-      { "1": tenant.slug }
+      "SELECT * FROM etiquetas ORDER BY nombre"
     )
     return NextResponse.json(etiquetas)
   } catch (error) {
@@ -33,16 +32,16 @@ export async function POST(req: NextRequest) {
     }
 
     const existing = await dbGet(
-      "SELECT id FROM etiquetas WHERE nombre = ? AND negocio_slug = ?",
-      { "1": nombre, "2": tenant.slug }
+      "SELECT id FROM etiquetas WHERE nombre = ?",
+      { "1": nombre }
     )
     if (existing) {
       return NextResponse.json({ error: "La etiqueta ya existe" }, { status: 409 })
     }
 
     const result = await dbRun(
-      "INSERT INTO etiquetas (nombre, color, negocio_slug) VALUES (?, ?, ?)",
-      { "1": nombre, "2": color || "#6b7280", "3": tenant.slug }
+      "INSERT INTO etiquetas (nombre, color) VALUES (?, ?)",
+      { "1": nombre, "2": color || "#6b7280" }
     )
 
     return NextResponse.json({
@@ -71,8 +70,8 @@ export async function DELETE(req: NextRequest) {
     }
 
     await dbRun(
-      "DELETE FROM etiquetas WHERE id = ? AND negocio_slug = ?",
-      { "1": Number(id), "2": tenant.slug }
+      "DELETE FROM etiquetas WHERE id = ?",
+      { "1": Number(id) }
     )
     return NextResponse.json({ success: true })
   } catch (error) {

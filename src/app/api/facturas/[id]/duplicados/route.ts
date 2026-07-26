@@ -17,9 +17,9 @@ export async function GET(
       `SELECT dp.*, f.numero_factura, f.emisor_nombre, f.total, f.fecha_emision
        FROM duplicados_potenciales dp
        JOIN facturas f ON f.id = dp.duplicada_de_id
-       WHERE dp.factura_id = ? AND dp.negocio_slug = ? AND f.negocio_slug = ?
+       WHERE dp.factura_id = ? AND f.negocio_slug = ?
        ORDER BY dp.score DESC`,
-      { "1": facturaId, "2": tenant.slug, "3": tenant.slug }
+      { "1": facturaId, "2": tenant.slug }
     )
 
     return NextResponse.json(duplicados)

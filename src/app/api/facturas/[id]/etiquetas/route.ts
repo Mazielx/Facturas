@@ -8,7 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tenant = await requireActiveTenant()
+    await requireActiveTenant()
     await ensureSchema()
     const { id } = await params
     const facturaId = Number(id)
@@ -16,9 +16,9 @@ export async function GET(
     const etiquetas = await dbAll(
       `SELECT e.* FROM etiquetas e
        JOIN factura_etiqueta fe ON fe.etiqueta_id = e.id
-       WHERE fe.factura_id = ? AND fe.negocio_slug = ? AND e.negocio_slug = ?
+       WHERE fe.factura_id = ?
        ORDER BY e.nombre`,
-      { "1": facturaId, "2": tenant.slug, "3": tenant.slug }
+      { "1": facturaId }
     )
 
     return NextResponse.json(etiquetas)
@@ -33,7 +33,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tenant = await requireActiveTenant()
+    await requireActiveTenant()
     await ensureSchema()
     const { id } = await params
     const facturaId = Number(id)
@@ -45,8 +45,8 @@ export async function POST(
     }
 
     const existing = await dbGet(
-      "SELECT 1 FROM factura_etiqueta WHERE factura_id = ? AND etiqueta_id = ? AND negocio_slug = ?",
-      { "1": facturaId, "2": etiqueta_id, "3": tenant.slug }
+      "SELECT 1 FROM factura_etiqueta WHERE factura_id = ? AND etiqueta_id = ?",
+      { "1": facturaId, "2": etiqueta_id }
     )
 
     if (existing) {
@@ -54,8 +54,8 @@ export async function POST(
     }
 
     await dbRun(
-      "INSERT INTO factura_etiqueta (factura_id, etiqueta_id, negocio_slug) VALUES (?, ?, ?)",
-      { "1": facturaId, "2": etiqueta_id, "3": tenant.slug }
+      "INSERT INTO factura_etiqueta (factura_id, etiqueta_id) VALUES (?, ?)",
+      { "1": facturaId, "2": etiqueta_id }
     )
 
     return NextResponse.json({ success: true }, { status: 201 })
@@ -70,7 +70,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tenant = await requireActiveTenant()
+    await requireActiveTenant()
     await ensureSchema()
     const { id } = await params
     const facturaId = Number(id)
@@ -82,8 +82,8 @@ export async function DELETE(
     }
 
     await dbRun(
-      "DELETE FROM factura_etiqueta WHERE factura_id = ? AND etiqueta_id = ? AND negocio_slug = ?",
-      { "1": facturaId, "2": Number(etiquetaId), "3": tenant.slug }
+      "DELETE FROM factura_etiqueta WHERE factura_id = ? AND etiqueta_id = ?",
+      { "1": facturaId, "2": Number(etiquetaId) }
     )
 
     return NextResponse.json({ success: true })

@@ -50,7 +50,14 @@ export async function POST() {
     const gmail = google.gmail({ version: "v1", auth })
 
     for (const email of emailList.emails) {
-      for (const attachment of email.attachments) {
+      const sortedAttachments = [...email.attachments].sort((a, b) => {
+        const aIsXml = a.filename.toLowerCase().endsWith(".xml") || a.mimeType?.includes("xml")
+        const bIsXml = b.filename.toLowerCase().endsWith(".xml") || b.mimeType?.includes("xml")
+        if (aIsXml && !bIsXml) return -1
+        if (!aIsXml && bIsXml) return 1
+        return 0
+      })
+      for (const attachment of sortedAttachments) {
         try {
           const response = await gmail.users.messages.attachments.get({
             userId: "me",

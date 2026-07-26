@@ -27,13 +27,13 @@ export async function GET(
     }
 
     const lineas = await dbAll(
-      "SELECT * FROM lineas_factura WHERE factura_id = ? AND negocio_slug = ? ORDER BY numero_linea",
-      { "1": id, "2": tenant.slug }
+      "SELECT * FROM lineas_factura WHERE factura_id = ? ORDER BY numero_linea",
+      { "1": id }
     )
 
     const adjuntos = await dbAll(
-      "SELECT id, factura_id, filename, mime_type, size, attachment_id, content_hash FROM adjuntos WHERE factura_id = ? AND negocio_slug = ?",
-      { "1": id, "2": tenant.slug }
+      "SELECT id, factura_id, filename, mime_type, size, attachment_id, content_hash FROM adjuntos WHERE factura_id = ?",
+      { "1": id }
     )
 
     return NextResponse.json({ factura, lineas, adjuntos })

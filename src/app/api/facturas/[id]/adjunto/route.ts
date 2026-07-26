@@ -8,12 +8,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const tenant = await requireActiveTenant()
+    await requireActiveTenant()
     await ensureSchema()
 
     const adjunto = await dbGet<{ filename: string; mime_type: string; content: Buffer }>(
-      "SELECT filename, mime_type, content FROM adjuntos WHERE factura_id = ? AND negocio_slug = ? LIMIT 1",
-      { "1": id, "2": tenant.slug }
+      "SELECT filename, mime_type, content FROM adjuntos WHERE factura_id = ? LIMIT 1",
+      { "1": id }
     )
 
     if (!adjunto || !adjunto.content) {
