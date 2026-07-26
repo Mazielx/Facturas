@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireActiveTenant } from "@/lib/tenant"
+import { dbGet, dbAll, dbRun } from "@/db/client"
+import { ensureSchema } from "@/db"
 
 const VALID_ESTADOS = ["pendiente", "pagada", "cancelada"]
 
@@ -9,9 +11,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const { db } = await requireActiveTenant()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
 
-    const factura = db.prepare("SELECT * FROM facturas WHERE id = ?").get(id)
+    const factura = await dbGet(
+      "SELECT * FROM facturas WHERE id = ? AND negocio_slug = ?",
+      { "1": id, "2": tenant.slug }
+    )
 
     if (!factura) {
       return NextResponse.json(
@@ -20,18 +26,20 @@ export async function GET(
       )
     }
 
-    const lineas = db
-      .prepare("SELECT * FROM lineas_factura WHERE factura_id = ? ORDER BY numero_linea")
-      .all(id)
+    const lineas = await dbAll(
+      "SELECT * FROM lineas_factura WHERE factura_id = ? AND negocio_slug = ? ORDER BY numero_linea",
+      { "1": id, "2": tenant.slug }
+    )
 
-    const adjuntos = db
-      .prepare("SELECT id, factura_id, filename, mime_type, size, attachment_id, content_hash FROM adjuntos WHERE factura_id = ?")
-      .all(id)
+    const adjuntos = await dbAll(
+      "SELECT id, factura_id, filename, mime_type, size, attachment_id, content_hash FROM adjuntos WHERE factura_id = ? AND negocio_slug = ?",
+      { "1": id, "2": tenant.slug }
+    )
 
     return NextResponse.json({ factura, lineas, adjuntos })
   } catch (error) {
     console.error("Error fetching factura:", error)
-    if (error instanceof Error && error.message === "No hay negocio seleccionado") {
+    if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No hay negocio seleccionado" }, { status: 401 })
     }
     return NextResponse.json(
@@ -47,7 +55,8 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-    const { db } = await requireActiveTenant()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
     const body = await request.json()
 
     if (body.estado && !VALID_ESTADOS.includes(body.estado)) {
@@ -57,7 +66,10 @@ export async function PATCH(
       )
     }
 
-    const factura = db.prepare("SELECT id FROM facturas WHERE id = ?").get(id)
+    const factura = await dbGet(
+      "SELECT id FROM facturas WHERE id = ? AND negocio_slug = ?",
+      { "1": id, "2": tenant.slug }
+    )
     if (!factura) {
       return NextResponse.json(
         { error: "Factura no encontrada" },
@@ -66,11 +78,12 @@ export async function PATCH(
     }
 
     const updates: string[] = []
-    const values: (string | number)[] = []
+    const args: Record<string, unknown> = {}
+    let idx = 1
 
     if (body.estado) {
       updates.push("estado = ?")
-      values.push(body.estado)
+      args[String(idx++)] = body.estado
     }
 
     if (updates.length === 0) {
@@ -81,15 +94,19 @@ export async function PATCH(
     }
 
     updates.push("updated_at = datetime('now')")
-    values.push(id)
+    args[String(idx++)] = id
+    args[String(idx++)] = tenant.slug
 
-    db.prepare(`UPDATE facturas SET ${updates.join(", ")} WHERE id = ?`).run(...values)
+    await dbRun(`UPDATE facturas SET ${updates.join(", ")} WHERE id = ? AND negocio_slug = ?`, args)
 
-    const updated = db.prepare("SELECT * FROM facturas WHERE id = ?").get(id)
+    const updated = await dbGet(
+      "SELECT * FROM facturas WHERE id = ? AND negocio_slug = ?",
+      { "1": id, "2": tenant.slug }
+    )
     return NextResponse.json({ factura: updated })
   } catch (error) {
     console.error("Error updating factura:", error)
-    if (error instanceof Error && error.message === "No hay negocio seleccionado") {
+    if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No hay negocio seleccionado" }, { status: 401 })
     }
     return NextResponse.json(

@@ -1,9 +1,8 @@
-import Database from "better-sqlite3"
+import { createClient } from "@libsql/client"
 import fs from "fs"
 import path from "path"
 
-const DATA_DIR = path.join(process.cwd(), "data")
-const BACKUP_DIR = process.env.BACKUP_DIR || path.join(DATA_DIR, "backups")
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(process.cwd(), "data", "backups")
 const RETENTION_DAYS = parseInt(process.env.BACKUP_RETENTION_DAYS || "30")
 
 function ensureBackupDir() {
@@ -14,7 +13,7 @@ function ensureBackupDir() {
 
 function cleanupOldBackups() {
   const files = fs.readdirSync(BACKUP_DIR)
-    .filter((f) => f.startsWith("backup-") && f.endsWith(".db"))
+    .filter((f) => f.startsWith("backup-") && f.endsWith(".json"))
     .map((f) => ({
       name: f,
       time: fs.statSync(path.join(BACKUP_DIR, f)).mtime.getTime(),
@@ -30,39 +29,37 @@ function cleanupOldBackups() {
   }
 }
 
-function backupDb(dbPath: string) {
-  if (!fs.existsSync(dbPath)) {
-    console.log(`Base de datos no encontrada: ${dbPath}`)
-    return
-  }
-
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
-  const backupPath = path.join(BACKUP_DIR, `backup-${timestamp}.db`)
-
-  const source = new Database(dbPath)
-  source.backup(backupPath)
-  source.close()
-
-  console.log(`Backup creado: ${backupPath}`)
-}
-
-function main() {
+async function main() {
   console.log("Iniciando backup...")
   ensureBackupDir()
 
-  const mainDbPath = path.join(DATA_DIR, "main.db")
-  backupDb(mainDbPath)
+  const url = process.env.TURSO_DATABASE_URL
+  const authToken = process.env.TURSO_AUTH_TOKEN
+  if (!url) {
+    console.error("TURSO_DATABASE_URL no configurado")
+    process.exit(1)
+  }
 
-  const negociosDir = path.join(DATA_DIR, "negocios")
-  if (fs.existsSync(negociosDir)) {
-    const negocios = fs.readdirSync(negociosDir)
-    for (const negocio of negocios) {
-      const tenantDbPath = path.join(negociosDir, negocio, "facturas.db")
-      backupDb(tenantDbPath)
+  const client = createClient({ url, authToken })
+  const tables = ["facturas", "lineas_factura", "adjuntos", "procesamiento_log", "negocios", "usuarios", "cuentas_correo", "duplicados_potenciales", "api_keys"]
+  const backup: Record<string, unknown[]> = {}
+
+  for (const table of tables) {
+    try {
+      const result = await client.execute(`SELECT * FROM ${table}`)
+      backup[table] = result.rows
+    } catch {
+      backup[table] = []
     }
   }
 
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+  const backupPath = path.join(BACKUP_DIR, `backup-${timestamp}.json`)
+  fs.writeFileSync(backupPath, JSON.stringify({ timestamp: new Date().toISOString(), data: backup }, null, 2))
+  console.log(`Backup creado: ${backupPath}`)
+
   cleanupOldBackups()
+  client.close()
   console.log("Backup completado")
 }
 

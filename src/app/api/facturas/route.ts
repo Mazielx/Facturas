@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server"
-import { requireActiveTenant, getActiveTenant } from "@/lib/tenant"
+import { requireActiveTenant } from "@/lib/tenant"
 import { convertCurrency } from "@/lib/currency"
+import { dbGet, dbAll } from "@/db/client"
+import { ensureSchema } from "@/db"
 
 export async function GET(request: Request) {
   try {
-    const { db } = await requireActiveTenant()
-    const tenant = await getActiveTenant()
-    const monedaDefault = tenant?.negocio?.moneda_default || "MXN"
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
+    const monedaDefault = tenant.negocio?.moneda_default || "MXN"
     const { searchParams } = new URL(request.url)
 
     const page = parseInt(searchParams.get("page") || "1")
@@ -27,15 +29,16 @@ export async function GET(request: Request) {
     let ftsIds: number[] | null = null
 
     if (search) {
-      const ftsExists = db.prepare(
+      const ftsExists = await dbGet(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='facturas_fts'"
-      ).get()
+      )
 
       if (ftsExists) {
         try {
-          const ftsRows = db.prepare(
-            "SELECT rowid FROM facturas_fts WHERE facturas_fts MATCH ?"
-          ).all(`${search}*`) as Array<{ rowid: number }>
+          const ftsRows = await dbAll<{ rowid: number }>(
+            "SELECT rowid FROM facturas_fts WHERE facturas_fts MATCH ?",
+            { "1": `${search}*` }
+          )
           ftsIds = ftsRows.map((r) => r.rowid)
           useFts = true
         } catch {
@@ -44,8 +47,9 @@ export async function GET(request: Request) {
       }
     }
 
-    let whereClause = "WHERE 1=1"
-    const params: (string | number)[] = []
+    let whereClause = "WHERE f.negocio_slug = ?"
+    const args: Record<string, unknown> = { "1": tenant.slug }
+    let paramIdx = 2
 
     if (useFts && ftsIds !== null) {
       if (ftsIds.length === 0) {
@@ -56,63 +60,71 @@ export async function GET(request: Request) {
       }
       const placeholders = ftsIds.map(() => "?").join(",")
       whereClause += ` AND f.id IN (${placeholders})`
-      params.push(...ftsIds)
+      for (const id of ftsIds) {
+        args[String(paramIdx++)] = id
+      }
     } else if (search) {
       whereClause += " AND (f.numero_factura LIKE ? OR f.emisor_nombre LIKE ? OR f.receptor_nombre LIKE ?)"
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`)
+      args[String(paramIdx++)] = `%${search}%`
+      args[String(paramIdx++)] = `%${search}%`
+      args[String(paramIdx++)] = `%${search}%`
     }
 
     if (fechaDesde) {
       whereClause += " AND f.fecha_emision >= ?"
-      params.push(fechaDesde)
+      args[String(paramIdx++)] = fechaDesde
     }
 
     if (fechaHasta) {
       whereClause += " AND f.fecha_emision <= ?"
-      params.push(fechaHasta)
+      args[String(paramIdx++)] = fechaHasta
     }
 
     if (emisor) {
       whereClause += " AND f.emisor_nombre LIKE ?"
-      params.push(`%${emisor}%`)
+      args[String(paramIdx++)] = `%${emisor}%`
     }
 
     if (estado) {
       whereClause += " AND f.estado = ?"
-      params.push(estado)
+      args[String(paramIdx++)] = estado
     }
 
     if (moneda) {
       whereClause += " AND f.moneda = ?"
-      params.push(moneda)
+      args[String(paramIdx++)] = moneda
     }
 
     if (confianza) {
       whereClause += " AND f.confianza_nivel = ?"
-      params.push(confianza)
+      args[String(paramIdx++)] = confianza
     }
 
     if (revision) {
       whereClause += " AND f.requiere_revision = ?"
-      params.push(Number(revision))
+      args[String(paramIdx++)] = Number(revision)
     }
 
     let joinClause = ""
     if (etiqueta) {
       joinClause += " JOIN factura_etiqueta fe ON fe.factura_id = f.id JOIN etiquetas e ON e.id = fe.etiqueta_id"
       whereClause += " AND e.nombre = ?"
-      params.push(etiqueta)
+      args[String(paramIdx++)] = etiqueta
     }
 
     const countQuery = `SELECT COUNT(DISTINCT f.id) as total FROM facturas f ${joinClause} ${whereClause}`
-    const { total } = db.prepare(countQuery).get(...params) as { total: number }
+    const countResult = await dbGet<{ total: number }>(countQuery, { ...args })
+    const total = countResult?.total ?? 0
+
+    args[String(paramIdx++)] = limit
+    args[String(paramIdx++)] = offset
 
     const query = `
       SELECT DISTINCT f.* FROM facturas f ${joinClause} ${whereClause}
       ORDER BY f.fecha_emision DESC
       LIMIT ? OFFSET ?
     `
-    const facturasRaw = db.prepare(query).all(...params, limit, offset) as Array<Record<string, unknown>>
+    const facturasRaw = await dbAll(query, args)
 
     const facturas = facturasRaw.map((f) => {
       const originalCurrency = (f.moneda as string) || "MXN"
@@ -136,7 +148,7 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("Error fetching facturas:", error)
-    if (error instanceof Error && error.message === "No hay negocio seleccionado") {
+    if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No hay negocio seleccionado" }, { status: 401 })
     }
     return NextResponse.json(

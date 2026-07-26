@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { validateApiKey } from "@/lib/api-auth"
-import { getTenantDb, getNegocioById } from "@/db"
+import { getNegocioById } from "@/db"
+import { dbAll } from "@/db/client"
 import * as XLSX from "xlsx"
 
 export async function GET(req: NextRequest) {
@@ -15,21 +16,21 @@ export async function GET(req: NextRequest) {
       return new Response(JSON.stringify({ error: "API key invalida" }), { status: 401, headers: { "Content-Type": "application/json" } })
     }
 
-    const negocio = getNegocioById(apiKey.negocio_id)
+    const negocio = await getNegocioById(apiKey.negocio_id)
     if (!negocio) {
       return new Response(JSON.stringify({ error: "Negocio no encontrado" }), { status: 404, headers: { "Content-Type": "application/json" } })
     }
 
-    const db = getTenantDb(negocio.slug)
     const { searchParams } = new URL(req.url)
     const format = searchParams.get("format") || "csv"
 
-    const facturas = db.prepare(`
-      SELECT id, numero_factura, fecha_emision, emisor_nombre, emisor_nif,
+    const facturas = await dbAll(
+      `SELECT id, numero_factura, fecha_emision, emisor_nombre, emisor_nif,
              receptor_nombre, receptor_nif, base_imponible, tipo_iva,
              cuota_iva, total, moneda, estado, confianza_nivel, requiere_revision
-      FROM facturas ORDER BY fecha_emision DESC
-    `).all() as Record<string, unknown>[]
+       FROM facturas WHERE negocio_slug = ? ORDER BY fecha_emision DESC`,
+      { "1": negocio.slug }
+    ) as Record<string, unknown>[]
 
     if (format === "xlsx") {
       const worksheetData = facturas.map((f) => ({

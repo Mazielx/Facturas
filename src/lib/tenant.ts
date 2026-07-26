@@ -1,13 +1,12 @@
 import { cookies } from "next/headers"
-import { getTenantDb, getNegocioBySlug, getNegocioById, type Negocio } from "@/db"
-import type Database from "better-sqlite3"
+import { getNegocioBySlug, getNegocioById, type Negocio } from "@/db"
 import { getCurrentUser, type Usuario, type Session } from "@/lib/auth"
 
 const COOKIE_NAME = "negocio_slug"
 
 export interface AuthenticatedTenant {
   negocio: Negocio
-  db: Database.Database
+  slug: string
   user: Usuario & { session: Session }
 }
 
@@ -20,15 +19,14 @@ export async function getActiveTenant(): Promise<AuthenticatedTenant | null> {
   const user = await getCurrentUser()
   if (!user) return null
 
-  const negocio = getNegocioBySlug(slug)
+  const negocio = await getNegocioBySlug(slug)
   if (!negocio) return null
 
   if (user.role === "negocio" && user.negocio_id !== negocio.id) {
     return null
   }
 
-  const db = getTenantDb(slug)
-  return { negocio, db, user }
+  return { negocio, slug, user }
 }
 
 export async function requireActiveTenant(): Promise<AuthenticatedTenant> {
@@ -55,12 +53,12 @@ export async function requireAdmin(): Promise<Usuario & { session: Session }> {
   return user
 }
 
-export function getNegocioIdFromSlug(slug: string): number | null {
-  const negocio = getNegocioBySlug(slug)
+export async function getNegocioIdFromSlug(slug: string): Promise<number | null> {
+  const negocio = await getNegocioBySlug(slug)
   return negocio?.id ?? null
 }
 
-export function getNegocioSlugFromId(id: number): string | null {
-  const negocio = getNegocioById(id)
+export async function getNegocioSlugFromId(id: number): Promise<string | null> {
+  const negocio = await getNegocioById(id)
   return negocio?.slug ?? null
 }

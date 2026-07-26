@@ -4,22 +4,21 @@ import { getOAuth2ClientWithTokens, listEmailsWithAttachments, getAuthFromCuenta
 import { processAttachment } from "@/lib/extraction"
 import { requireActiveTenant } from "@/lib/tenant"
 import { notifyExtractionErrors } from "@/lib/notifications"
-import { getCuentasCorreo, updateCuentaCorreoTokens, getNegocioById } from "@/db"
+import { getCuentasCorreo, updateCuentaCorreoTokens } from "@/db"
 import type { Credentials } from "google-auth-library"
 import { google } from "googleapis"
 
 export async function POST() {
-  let db: import("better-sqlite3").Database
-  let negocioId: number
+  let slug: string
   try {
     const tenant = await requireActiveTenant()
-    db = tenant.db
-    negocioId = tenant.negocio.id
+    slug = tenant.slug
   } catch {
     return NextResponse.json({ error: "No hay negocio seleccionado" }, { status: 401 })
   }
 
-  const cuentas = getCuentasCorreo(negocioId)
+  const negocioId = (await requireActiveTenant()).negocio.id
+  const cuentas = await getCuentasCorreo(negocioId)
   const cookieStore = await cookies()
   const tokensCookie = cookieStore.get("gmail_tokens")
 
@@ -65,14 +64,14 @@ export async function POST() {
           const buffer = Buffer.from(data, "base64url")
 
           const extractionResult = await processAttachment(
-            db,
             buffer,
             attachment.filename,
             attachment.mimeType,
             email.id,
             email.subject,
             email.from,
-            email.date
+            email.date,
+            slug
           )
 
           if (extractionResult.success) {
@@ -94,7 +93,7 @@ export async function POST() {
 
       const credentials = auth.credentials
       if (credentials.access_token && credentials.refresh_token && credentials.expiry_date) {
-        updateCuentaCorreoTokens(
+        await updateCuentaCorreoTokens(
           cuenta.id,
           credentials.access_token,
           credentials.refresh_token,

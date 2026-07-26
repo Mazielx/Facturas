@@ -1,7 +1,7 @@
-import type Database from "better-sqlite3"
 import { parseXml } from "./xml-parser"
 import { parsePdf } from "./pdf-parser"
 import type { FacturaCompleta, ExtractionResult } from "./types"
+import { dbGet, dbAll, dbRun } from "@/db/client"
 import crypto from "crypto"
 
 export function calcularConfianza(datos: FacturaCompleta, source: "xml" | "pdf"): number {
@@ -33,32 +33,24 @@ export function nivelConfianza(score: number): "confiable" | "alta" | "media" | 
   return "baja"
 }
 
-export function detectarDuplicados(
-  db: Database.Database,
+export async function detectarDuplicados(
   facturaId: number,
   datos: FacturaCompleta
-): Array<{ facturaId: number; razon: string; score: number }> {
+): Promise<Array<{ facturaId: number; razon: string; score: number }>> {
   const duplicados: Array<{ facturaId: number; razon: string; score: number }> = []
 
-  const mismoNumero = db
-    .prepare(
-      "SELECT id FROM facturas WHERE numero_factura = ? AND emisor_nif = ? AND id != ?"
-    )
-    .get(datos.factura.numeroFactura, datos.emisor.nif || "", facturaId) as { id: number } | undefined
+  const mismoNumero = await dbGet<{ id: number }>(
+    "SELECT id FROM facturas WHERE numero_factura = ? AND emisor_nif = ? AND id != ?",
+    { "1": datos.factura.numeroFactura, "2": datos.emisor.nif || "", "3": facturaId }
+  )
   if (mismoNumero) {
     duplicados.push({ facturaId: mismoNumero.id, razon: "mismo_numero", score: 0.95 })
   }
 
-  const mismoMonto = db
-    .prepare(
-      "SELECT id FROM facturas WHERE ABS(total - ?) < 0.01 AND fecha_emision = ? AND emisor_nif = ? AND id != ?"
-    )
-    .get(
-      datos.factura.total,
-      datos.factura.fechaEmision,
-      datos.emisor.nif || "",
-      facturaId
-    ) as { id: number } | undefined
+  const mismoMonto = await dbGet<{ id: number }>(
+    "SELECT id FROM facturas WHERE ABS(total - ?) < 0.01 AND fecha_emision = ? AND emisor_nif = ? AND id != ?",
+    { "1": datos.factura.total, "2": datos.factura.fechaEmision, "3": datos.emisor.nif || "", "4": facturaId }
+  )
   if (mismoMonto) {
     duplicados.push({ facturaId: mismoMonto.id, razon: "mismo_monto_fecha", score: 0.85 })
   }
@@ -67,18 +59,21 @@ export function detectarDuplicados(
 }
 
 export async function processAttachment(
-  db: Database.Database,
   content: Buffer,
   filename: string,
   mimeType: string,
   emailId: string,
   emailSubject: string,
   emailFrom: string,
-  emailDate: string
+  emailDate: string,
+  negocioSlug?: string
 ): Promise<ExtractionResult> {
   const contentHash = crypto.createHash("sha256").update(content).digest("hex")
 
-  const existing = db.prepare("SELECT id FROM facturas WHERE adjunto_hash = ?").get(contentHash) as { id: number } | undefined
+  const existing = await dbGet<{ id: number }>(
+    "SELECT id FROM facturas WHERE adjunto_hash = ?",
+    { "1": contentHash }
+  )
   if (existing) {
     return { success: true, facturaId: existing.id, error: "Ya procesado previamente" }
   }
@@ -100,42 +95,37 @@ export async function processAttachment(
     const confianzaScore = calcularConfianza(datos, source)
     const confianzaNivel = nivelConfianza(confianzaScore)
 
-    const insertAll = db.transaction(() => {
-      const facturaId = insertFactura(db, datos, {
-        emailId,
-        emailSubject,
-        emailFrom,
-        emailDate,
-        filename,
-        mimeType,
-        contentHash,
-        content,
-        confianzaScore,
-        confianzaNivel,
-      })
-
-      const duplicados = detectarDuplicados(db, facturaId, datos)
-      for (const dup of duplicados) {
-        db.prepare(
-          "INSERT INTO duplicados_potenciales (factura_id, duplicada_de_id, razon, score) VALUES (?, ?, ?, ?)"
-        ).run(facturaId, dup.facturaId, dup.razon, dup.score)
-      }
-
-      return facturaId
+    const facturaId = await insertFactura(datos, {
+      emailId,
+      emailSubject,
+      emailFrom,
+      emailDate,
+      filename,
+      mimeType,
+      contentHash,
+      content,
+      confianzaScore,
+      confianzaNivel,
+      negocioSlug: negocioSlug || "default",
     })
 
-    const facturaId = insertAll()
+    const duplicados = await detectarDuplicados(facturaId, datos)
+    for (const dup of duplicados) {
+      await dbRun(
+        "INSERT INTO duplicados_potenciales (factura_id, duplicada_de_id, razon, score) VALUES (?, ?, ?, ?)",
+        { "1": facturaId, "2": dup.facturaId, "3": dup.razon, "4": dup.score }
+      )
+    }
 
     return { success: true, facturaId, datos }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Error desconocido"
-    insertLog(db, emailId, filename, "error", errorMsg)
+    await insertLog(emailId, filename, "error", errorMsg)
     return { success: false, error: errorMsg }
   }
 }
 
-function insertFactura(
-  db: Database.Database,
+async function insertFactura(
   datos: FacturaCompleta,
   metadata: {
     emailId: string
@@ -148,10 +138,12 @@ function insertFactura(
     content: Buffer
     confianzaScore: number
     confianzaNivel: string
+    negocioSlug: string
   }
-): number {
-  const result = db.prepare(`
+): Promise<number> {
+  const result = await dbRun(`
     INSERT INTO facturas (
+      negocio_slug,
       emisor_nombre, emisor_nif, emisor_direccion, emisor_poblacion, emisor_provincia,
       emisor_cp, emisor_pais, emisor_email, emisor_telefono, emisor_logo,
       receptor_nombre, receptor_nif, receptor_direccion, receptor_poblacion,
@@ -163,18 +155,20 @@ function insertFactura(
       adjunto_nombre, adjunto_tipo, adjunto_hash,
       confianza_score, confianza_nivel
     ) VALUES (
-      @emisor_nombre, @emisor_nif, @emisor_direccion, @emisor_poblacion, @emisor_provincia,
-      @emisor_cp, @emisor_pais, @emisor_email, @emisor_telefono, @emisor_logo,
-      @receptor_nombre, @receptor_nif, @receptor_direccion, @receptor_poblacion,
-      @receptor_provincia, @receptor_cp, @receptor_pais, @receptor_email,
-      @numero_factura, @fecha_emision, @fecha_vencimiento, @tipo_documento, @moneda,
-      @base_imponible, @tipo_iva, @cuota_iva, @total, @descuento, @retencion, @neto,
-      @metodo_pago, @estado,
-      @email_id, @email_asunto, @email_emisor, @email_fecha,
-      @adjunto_nombre, @adjunto_tipo, @adjunto_hash,
-      @confianza_score, @confianza_nivel
+      $negocio_slug,
+      $emisor_nombre, $emisor_nif, $emisor_direccion, $emisor_poblacion, $emisor_provincia,
+      $emisor_cp, $emisor_pais, $emisor_email, $emisor_telefono, $emisor_logo,
+      $receptor_nombre, $receptor_nif, $receptor_direccion, $receptor_poblacion,
+      $receptor_provincia, $receptor_cp, $receptor_pais, $receptor_email,
+      $numero_factura, $fecha_emision, $fecha_vencimiento, $tipo_documento, $moneda,
+      $base_imponible, $tipo_iva, $cuota_iva, $total, $descuento, $retencion, $neto,
+      $metodo_pago, $estado,
+      $email_id, $email_asunto, $email_emisor, $email_fecha,
+      $adjunto_nombre, $adjunto_tipo, $adjunto_hash,
+      $confianza_score, $confianza_nivel
     )
-  `).run({
+  `, {
+    negocio_slug: metadata.negocioSlug,
     emisor_nombre: datos.emisor.nombre,
     emisor_nif: datos.emisor.nif || null,
     emisor_direccion: datos.emisor.direccion || null,
@@ -218,47 +212,40 @@ function insertFactura(
     confianza_nivel: metadata.confianzaNivel,
   })
 
-  const facturaId = result.lastInsertRowid as number
+  const facturaId = result.lastInsertRowid
 
   for (const linea of datos.lineas) {
-    db.prepare(`
+    await dbRun(`
       INSERT INTO lineas_factura (
         factura_id, numero_linea, descripcion, cantidad, precio_unitario,
         descuento, tipo_iva, subtotal, total
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      facturaId,
-      linea.numeroLinea,
-      linea.descripcion,
-      linea.cantidad,
-      linea.precioUnitario,
-      linea.descuento,
-      linea.tipoIva,
-      linea.subtotal,
-      linea.total
-    )
+    `, {
+      "1": facturaId, "2": linea.numeroLinea, "3": linea.descripcion,
+      "4": linea.cantidad, "5": linea.precioUnitario, "6": linea.descuento,
+      "7": linea.tipoIva, "8": linea.subtotal, "9": linea.total,
+    })
   }
 
-  db.prepare(`
+  await dbRun(`
     INSERT INTO adjuntos (factura_id, filename, mime_type, content_hash, content)
     VALUES (?, ?, ?, ?, ?)
-  `).run(facturaId, metadata.filename, metadata.mimeType, metadata.contentHash, metadata.content)
+  `, { "1": facturaId, "2": metadata.filename, "3": metadata.mimeType, "4": metadata.contentHash, "5": metadata.content })
 
-  insertLog(db, metadata.emailId, metadata.filename, "success", null, facturaId)
+  await insertLog(metadata.emailId, metadata.filename, "success", null, facturaId)
 
   return facturaId
 }
 
-function insertLog(
-  db: Database.Database,
+async function insertLog(
   emailId: string,
   filename: string,
   status: string,
   errorMessage: string | null,
   facturaId?: number
-): void {
-  db.prepare(`
+): Promise<void> {
+  await dbRun(`
     INSERT INTO procesamiento_log (email_id, adjunto_filename, status, error_message, factura_id)
     VALUES (?, ?, ?, ?, ?)
-  `).run(emailId, filename, status, errorMessage, facturaId || null)
+  `, { "1": emailId, "2": filename, "3": status, "4": errorMessage, "5": facturaId || null })
 }

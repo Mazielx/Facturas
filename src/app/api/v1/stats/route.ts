@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateApiKey } from "@/lib/api-auth"
-import { getTenantDb, getNegocioById } from "@/db"
+import { getNegocioById } from "@/db"
+import { dbGet, dbAll } from "@/db/client"
 
 async function authApi(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
@@ -18,24 +19,30 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "API key invalida" }, { status: 401 })
     }
 
-    const negocio = getNegocioById(apiKey.negocio_id)
+    const negocio = await getNegocioById(apiKey.negocio_id)
     if (!negocio) {
       return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
     }
 
-    const db = getTenantDb(negocio.slug)
+    const totalFacturas = await dbGet<{ count: number }>(
+      "SELECT COUNT(*) as count FROM facturas WHERE negocio_slug = ?",
+      { "1": negocio.slug }
+    )
+    const totalImporte = await dbGet<{ sum: number }>(
+      "SELECT SUM(total) as sum FROM facturas WHERE negocio_slug = ?",
+      { "1": negocio.slug }
+    )
 
-    const totalFacturas = db.prepare("SELECT COUNT(*) as count FROM facturas").get() as { count: number }
-    const totalImporte = db.prepare("SELECT SUM(total) as sum FROM facturas").get() as { sum: number }
-
-    const porEstado = db.prepare(`
-      SELECT estado, COUNT(*) as count, SUM(total) as sum
-      FROM facturas GROUP BY estado
-    `).all()
+    const porEstado = await dbAll(
+      `SELECT estado, COUNT(*) as count, SUM(total) as sum
+       FROM facturas WHERE negocio_slug = ?
+       GROUP BY estado`,
+      { "1": negocio.slug }
+    )
 
     return NextResponse.json({
-      totalFacturas: totalFacturas.count,
-      totalImporte: totalImporte.sum || 0,
+      totalFacturas: totalFacturas?.count || 0,
+      totalImporte: totalImporte?.sum || 0,
       porEstado,
     })
   } catch (error) {

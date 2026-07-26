@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
-import { getMainDb } from "@/db"
+import { dbGet, dbRun } from "@/db/client"
 
 const EMAIL_COOLDOWN_MONTHS = 6
 
@@ -18,8 +18,11 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Nombre es requerido" }, { status: 400 })
     }
 
-    const db = getMainDb()
-    const current = db.prepare("SELECT email, email_changed_at FROM usuarios WHERE id = ?").get(user.id) as { email: string; email_changed_at: string | null }
+    const current = await dbGet<{ email: string; email_changed_at: string | null }>("SELECT email, email_changed_at FROM usuarios WHERE id = ?", { "1": user.id })
+
+    if (!current) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
+    }
 
     let newEmail = current.email
     let emailChanged = false
@@ -38,7 +41,7 @@ export async function PUT(request: Request) {
         }
       }
 
-      const existing = db.prepare("SELECT id FROM usuarios WHERE email = ? AND id != ?").get(email, user.id)
+      const existing = await dbGet<{ id: number }>("SELECT id FROM usuarios WHERE email = ? AND id != ?", { "1": email, "2": user.id })
       if (existing) {
         return NextResponse.json({ error: "Ya existe un usuario con ese email" }, { status: 409 })
       }
@@ -48,12 +51,12 @@ export async function PUT(request: Request) {
     }
 
     if (emailChanged) {
-      db.prepare("UPDATE usuarios SET nombre = ?, email = ?, telefono = ?, email_changed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(nombre, newEmail, telefono || null, user.id)
+      await dbRun("UPDATE usuarios SET nombre = ?, email = ?, telefono = ?, email_changed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", { "1": nombre, "2": newEmail, "3": telefono || null, "4": user.id })
     } else {
-      db.prepare("UPDATE usuarios SET nombre = ?, telefono = ?, updated_at = datetime('now') WHERE id = ?").run(nombre, telefono || null, user.id)
+      await dbRun("UPDATE usuarios SET nombre = ?, telefono = ?, updated_at = datetime('now') WHERE id = ?", { "1": nombre, "2": telefono || null, "3": user.id })
     }
 
-    const updated = db.prepare("SELECT id, email, nombre, role, profile_photo_url, email_changed_at, telefono FROM usuarios WHERE id = ?").get(user.id)
+    const updated = await dbGet("SELECT id, email, nombre, role, profile_photo_url, email_changed_at, telefono FROM usuarios WHERE id = ?", { "1": user.id })
 
     return NextResponse.json({ user: updated })
   } catch (error) {

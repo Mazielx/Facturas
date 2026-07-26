@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateApiKey } from "@/lib/api-auth"
-import { getTenantDb } from "@/db"
 import { getNegocioById } from "@/db"
+import { dbGet, dbAll } from "@/db/client"
 
 async function authApi(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
@@ -20,36 +20,38 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "API key invalida" }, { status: 401 })
     }
 
-    const negocio = getNegocioById(apiKey.negocio_id)
+    const negocio = await getNegocioById(apiKey.negocio_id)
     if (!negocio) {
       return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
     }
 
-    const db = getTenantDb(negocio.slug)
     const { searchParams } = new URL(req.url)
     const page = parseInt(searchParams.get("page") || "1")
     const limit = parseInt(searchParams.get("limit") || "50")
     const offset = (page - 1) * limit
 
-    const facturas = db
-      .prepare(
-        `SELECT id, numero_factura, emisor_nombre, emisor_nif, total, moneda,
-                fecha_emision, estado, created_at
-         FROM facturas
-         ORDER BY created_at DESC
-         LIMIT ? OFFSET ?`
-      )
-      .all(limit, offset)
+    const facturas = await dbAll(
+      `SELECT id, numero_factura, emisor_nombre, emisor_nif, total, moneda,
+              fecha_emision, estado, created_at
+       FROM facturas
+       WHERE negocio_slug = ?
+       ORDER BY created_at DESC
+       LIMIT ? OFFSET ?`,
+      { "1": negocio.slug, "2": limit, "3": offset }
+    )
 
-    const total = db.prepare("SELECT COUNT(*) as count FROM facturas").get() as { count: number }
+    const total = await dbGet<{ count: number }>(
+      "SELECT COUNT(*) as count FROM facturas WHERE negocio_slug = ?",
+      { "1": negocio.slug }
+    )
 
     return NextResponse.json({
       data: facturas,
       pagination: {
         page,
         limit,
-        total: total.count,
-        pages: Math.ceil(total.count / limit),
+        total: total?.count || 0,
+        pages: Math.ceil((total?.count || 0) / limit),
       },
     })
   } catch (error) {
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sin permisos de escritura" }, { status: 403 })
     }
 
-    const negocio = getNegocioById(apiKey.negocio_id)
+    const negocio = await getNegocioById(apiKey.negocio_id)
     if (!negocio) {
       return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
     }
@@ -81,17 +83,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "numero_factura y emisor_nombre son requeridos" }, { status: 400 })
     }
 
-    const db = getTenantDb(negocio.slug)
-    const result = db.prepare(`
-      INSERT INTO facturas (numero_factura, emisor_nombre, emisor_nif, receptor_nombre, receptor_nif,
+    const { dbRun } = await import("@/db/client")
+    const result = await dbRun(
+      `INSERT INTO facturas (numero_factura, emisor_nombre, emisor_nif, receptor_nombre, receptor_nif,
         fecha_emision, base_imponible, tipo_iva, cuota_iva, total, moneda, estado,
-        confianza_score, confianza_nivel)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, 'alta')
-    `).run(
-      numero_factura, emisor_nombre, emisor_nif || null, receptor_nombre || null, receptor_nif || null,
-      fecha_emision || new Date().toISOString().slice(0, 10),
-      base_imponible || 0, tipo_iva || 21, cuota_iva || 0, total || 0,
-      moneda || "EUR", estado || "pendiente"
+        confianza_score, confianza_nivel, negocio_slug)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, 'alta', ?)`,
+      {
+        "1": numero_factura, "2": emisor_nombre, "3": emisor_nif || null,
+        "4": receptor_nombre || null, "5": receptor_nif || null,
+        "6": fecha_emision || new Date().toISOString().slice(0, 10),
+        "7": base_imponible || 0, "8": tipo_iva || 21, "9": cuota_iva || 0,
+        "10": total || 0, "11": moneda || "EUR", "12": estado || "pendiente",
+        "13": negocio.slug,
+      }
     )
 
     return NextResponse.json({ id: result.lastInsertRowid, success: true }, { status: 201 })

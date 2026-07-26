@@ -1,23 +1,25 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireActiveTenant } from "@/lib/tenant"
+import { dbGet, dbAll, dbRun } from "@/db/client"
+import { ensureSchema } from "@/db"
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { db } = await requireActiveTenant()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
     const { id } = await params
     const facturaId = Number(id)
 
-    const etiquetas = db
-      .prepare(
-        `SELECT e.* FROM etiquetas e
-         JOIN factura_etiqueta fe ON fe.etiqueta_id = e.id
-         WHERE fe.factura_id = ?
-         ORDER BY e.nombre`
-      )
-      .all(facturaId)
+    const etiquetas = await dbAll(
+      `SELECT e.* FROM etiquetas e
+       JOIN factura_etiqueta fe ON fe.etiqueta_id = e.id
+       WHERE fe.factura_id = ? AND fe.negocio_slug = ? AND e.negocio_slug = ?
+       ORDER BY e.nombre`,
+      { "1": facturaId, "2": tenant.slug, "3": tenant.slug }
+    )
 
     return NextResponse.json(etiquetas)
   } catch (error) {
@@ -31,7 +33,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { db } = await requireActiveTenant()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
     const { id } = await params
     const facturaId = Number(id)
     const body = await req.json()
@@ -41,17 +44,18 @@ export async function POST(
       return NextResponse.json({ error: "etiqueta_id requerido" }, { status: 400 })
     }
 
-    const existing = db
-      .prepare("SELECT 1 FROM factura_etiqueta WHERE factura_id = ? AND etiqueta_id = ?")
-      .get(facturaId, etiqueta_id)
+    const existing = await dbGet(
+      "SELECT 1 FROM factura_etiqueta WHERE factura_id = ? AND etiqueta_id = ? AND negocio_slug = ?",
+      { "1": facturaId, "2": etiqueta_id, "3": tenant.slug }
+    )
 
     if (existing) {
       return NextResponse.json({ error: "La etiqueta ya esta asignada" }, { status: 409 })
     }
 
-    db.prepare("INSERT INTO factura_etiqueta (factura_id, etiqueta_id) VALUES (?, ?)").run(
-      facturaId,
-      etiqueta_id
+    await dbRun(
+      "INSERT INTO factura_etiqueta (factura_id, etiqueta_id, negocio_slug) VALUES (?, ?, ?)",
+      { "1": facturaId, "2": etiqueta_id, "3": tenant.slug }
     )
 
     return NextResponse.json({ success: true }, { status: 201 })
@@ -66,7 +70,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { db } = await requireActiveTenant()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
     const { id } = await params
     const facturaId = Number(id)
     const { searchParams } = new URL(req.url)
@@ -76,9 +81,9 @@ export async function DELETE(
       return NextResponse.json({ error: "etiqueta_id requerido" }, { status: 400 })
     }
 
-    db.prepare("DELETE FROM factura_etiqueta WHERE factura_id = ? AND etiqueta_id = ?").run(
-      facturaId,
-      Number(etiquetaId)
+    await dbRun(
+      "DELETE FROM factura_etiqueta WHERE factura_id = ? AND etiqueta_id = ? AND negocio_slug = ?",
+      { "1": facturaId, "2": Number(etiquetaId), "3": tenant.slug }
     )
 
     return NextResponse.json({ success: true })

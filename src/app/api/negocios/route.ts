@@ -15,13 +15,14 @@ export async function GET() {
   if (user.role === "admin") {
     const cookieStore = await cookies()
     const activeSlug = cookieStore.get("negocio_slug")?.value || null
-    const negocios = getAllNegocios()
+    const negocios = await getAllNegocios()
     return NextResponse.json({ negocios, activeSlug, user: userInfo })
   }
 
   const tenant = await getActiveTenant()
   if (!tenant) {
-    const negocios = getAllNegocios().filter((n) => n.id === user.negocio_id)
+    const allNegocios = await getAllNegocios()
+    const negocios = allNegocios.filter((n) => n.id === user.negocio_id)
     return NextResponse.json({ negocios, activeSlug: null, user: userInfo })
   }
 
@@ -40,8 +41,8 @@ export async function POST(request: Request) {
 
   const slug = nombre.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
   const { getNegocioBySlug } = await import("@/db")
-  if (getNegocioBySlug(slug)) return NextResponse.json({ error: "Ya existe un negocio con ese nombre" }, { status: 409 })
+  if (await getNegocioBySlug(slug)) return NextResponse.json({ error: "Ya existe un negocio con ese nombre" }, { status: 409 })
 
-  const negocio = createNegocio(nombre, slug, email)
+  const negocio = await createNegocio(nombre, slug, email)
   return NextResponse.json(negocio, { status: 201 })
 }

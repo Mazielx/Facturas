@@ -22,17 +22,17 @@ export async function DELETE(
       return NextResponse.json({ error: "ID invalido" }, { status: 400 })
     }
 
-    const cuenta = getCuentaCorreoById(cuentaId)
+    const cuenta = await getCuentaCorreoById(cuentaId)
     if (!cuenta) {
       return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 })
     }
 
-    const negocio = getNegocioById(user.negocio_id!)
+    const negocio = await getNegocioById(user.negocio_id!)
     if (!negocio || cuenta.negocio_id !== negocio.id) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    deleteCuentaCorreo(cuentaId)
+    await deleteCuentaCorreo(cuentaId)
 
     return NextResponse.json({ ok: true })
   } catch (error) {

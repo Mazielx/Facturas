@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
-import { getMainDb } from "@/db"
+import { dbRun } from "@/db/client"
 import fs from "fs"
 import path from "path"
 import crypto from "crypto"
@@ -44,8 +44,7 @@ export async function POST(request: Request) {
 
     const photoUrl = `/api/auth/photo/${filename}`
 
-    const db = getMainDb()
-    db.prepare("UPDATE usuarios SET profile_photo_url = ?, updated_at = datetime('now') WHERE id = ?").run(photoUrl, user.id)
+    await dbRun("UPDATE usuarios SET profile_photo_url = ?, updated_at = datetime('now') WHERE id = ?", { "1": photoUrl, "2": user.id })
 
     return NextResponse.json({ photoUrl })
   } catch (error) {

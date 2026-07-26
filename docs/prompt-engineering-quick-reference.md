@@ -309,6 +309,31 @@ Common mistake: Using useEffect to set initial theme — causes flash of wrong t
 
 ---
 
+## Database Migration Patterns
+
+### Pattern: Sync-to-Async Adapter Layer
+
+**When:** Migrating from synchronous ORM/driver (better-sqlite3) to async cloud DB (Turso/libsql)
+
+**Wrong approach:** Change every call site simultaneously
+- Massive diff, impossible to review
+- Breaks everything at once, hard to bisect
+
+**Correct approach:**
+1. Create an adapter (`client.ts`) that wraps the new async client
+2. Make the adapter accept the OLD calling convention (e.g., named params `{ "1": val }`) and convert internally
+3. Change function signatures from sync to async one module at a time
+4. Use `replaceAll` for mechanical renames (e.g., `db.prepare(` → `await dbAll(`)
+5. Test after each module migration, not after all
+
+**Key insight:** Keep the interface compatible with existing consumers, then migrate consumers incrementally.
+
+**Common mistake:** Changing the adapter's parameter format to match the new DB's native format — forces you to update ALL callers at once.
+
+```
+
+---
+
 ## Context Management
 
 ### When to start fresh (/clear):
@@ -324,4 +349,4 @@ Common mistake: Using useEffect to set initial theme — causes flash of wrong t
 
 ---
 
-*Last updated: 2026-07-24*
+*Last updated: 2026-07-25*

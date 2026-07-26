@@ -10,12 +10,12 @@ export async function GET() {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }
 
-    const negocio = getNegocioById(user.negocio_id!)
+    const negocio = await getNegocioById(user.negocio_id!)
     if (!negocio) {
       return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
     }
 
-    const cuentas = getCuentasCorreo(negocio.id)
+    const cuentas = await getCuentasCorreo(negocio.id)
     const maxCuentas = getMaxEmailCuentas(negocio.plan)
 
     return NextResponse.json({
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }
 
-    const negocio = getNegocioById(user.negocio_id)
+    const negocio = await getNegocioById(user.negocio_id)
     if (!negocio) {
       return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
     }
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const existing = getCuentasCorreo(negocio.id)
+    const existing = await getCuentasCorreo(negocio.id)
     const maxCuentas = getMaxEmailCuentas(negocio.plan)
 
     if (existing.length >= maxCuentas) {

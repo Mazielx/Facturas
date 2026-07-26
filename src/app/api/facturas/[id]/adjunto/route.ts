@@ -1,4 +1,6 @@
 import { requireActiveTenant } from "@/lib/tenant"
+import { dbGet } from "@/db/client"
+import { ensureSchema } from "@/db"
 
 export async function GET(
   _request: Request,
@@ -6,11 +8,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const { db } = await requireActiveTenant()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
 
-    const adjunto = db
-      .prepare("SELECT filename, mime_type, content FROM adjuntos WHERE factura_id = ? LIMIT 1")
-      .get(id) as { filename: string; mime_type: string; content: Buffer } | undefined
+    const adjunto = await dbGet<{ filename: string; mime_type: string; content: Buffer }>(
+      "SELECT filename, mime_type, content FROM adjuntos WHERE factura_id = ? AND negocio_slug = ? LIMIT 1",
+      { "1": id, "2": tenant.slug }
+    )
 
     if (!adjunto || !adjunto.content) {
       return new Response("Adjunto no encontrado", { status: 404 })
@@ -26,7 +30,7 @@ export async function GET(
     })
   } catch (error) {
     console.error("Error fetching adjunto:", error)
-    if (error instanceof Error && error.message === "No hay negocio seleccionado") {
+    if (error instanceof Error && error.message.includes("No hay negocio")) {
       return new Response(JSON.stringify({ error: "No hay negocio seleccionado" }), { status: 401, headers: { "Content-Type": "application/json" } })
     }
     return new Response("Error al obtener el adjunto", { status: 500 })

@@ -6,16 +6,15 @@ import { getAllNegocios } from "@/db"
 export async function GET() {
   try {
     await requireAdmin()
-    const negocios = getAllNegocios()
+    const negocios = await getAllNegocios()
 
-    const allKeys = negocios.flatMap((n) => {
-      const keys = getApiKeysByNegocio(n.id)
-      return keys.map((k) => ({
-        ...k,
-        negocio_nombre: n.nombre,
-        key_prefix: k.key_prefix + "****",
-      }))
-    })
+    const allKeys = []
+    for (const n of negocios) {
+      const keys = await getApiKeysByNegocio(n.id)
+      for (const k of keys) {
+        allKeys.push({ ...k, negocio_nombre: n.nombre, key_prefix: k.key_prefix + "****" })
+      }
+    }
 
     return NextResponse.json(allKeys)
   } catch (error) {
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { key, apiKey } = createApiKey(negocio_id, nombre, permisos || "read")
+    const { key, apiKey } = await createApiKey(negocio_id, nombre, permisos || "read")
 
     return NextResponse.json({
       ...apiKey,
@@ -72,7 +71,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID requerido" }, { status: 400 })
     }
 
-    deleteApiKey(Number(id))
+    await deleteApiKey(Number(id))
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error deleting API key:", error)
@@ -96,7 +95,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "ID requerido" }, { status: 400 })
     }
 
-    toggleApiKey(id, activa)
+    await toggleApiKey(id, activa)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error toggling API key:", error)

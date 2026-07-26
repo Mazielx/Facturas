@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser, verifyPassword, hashPassword } from "@/lib/auth"
-import { getMainDb } from "@/db"
+import { dbGet, dbRun } from "@/db/client"
 
 export async function PUT(request: Request) {
   try {
@@ -20,16 +20,15 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "La nueva contrasena debe tener al menos 6 caracteres" }, { status: 400 })
     }
 
-    const db = getMainDb()
-    const usuario = db.prepare("SELECT password_hash FROM usuarios WHERE id = ?").get(user.id) as { password_hash: string }
+    const usuario = await dbGet<{ password_hash: string }>("SELECT password_hash FROM usuarios WHERE id = ?", { "1": user.id })
 
-    const validPassword = await verifyPassword(currentPassword, usuario.password_hash)
+    const validPassword = await verifyPassword(currentPassword, usuario!.password_hash)
     if (!validPassword) {
       return NextResponse.json({ error: "La contrasena actual es incorrecta" }, { status: 401 })
     }
 
     const newHash = await hashPassword(newPassword)
-    db.prepare("UPDATE usuarios SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").run(newHash, user.id)
+    await dbRun("UPDATE usuarios SET password_hash = ?, updated_at = datetime('now') WHERE id = ?", { "1": newHash, "2": user.id })
 
     return NextResponse.json({ success: true })
   } catch (error) {

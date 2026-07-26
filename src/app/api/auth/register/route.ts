@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const existing = getUsuarioByEmail(email)
+    const existing = await getUsuarioByEmail(email)
     if (existing) {
       return NextResponse.json(
         { error: "Ya existe una cuenta con ese email" },
@@ -30,10 +30,10 @@ export async function POST(req: NextRequest) {
     }
 
     const usuario = await createUsuario(email, password, nombre, "negocio")
-    const session = createSession(usuario.id)
+    const session = await createSession(usuario.id)
 
     let negocioSlug: string | null = null
-    const allNegocios = getAllNegocios()
+    const allNegocios = await getAllNegocios()
     if (allNegocios.length === 1) {
       negocioSlug = allNegocios[0].slug
     }

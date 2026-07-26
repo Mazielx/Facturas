@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    let usuario = getUsuarioByEmail(email)
+    let usuario = await getUsuarioByEmail(email)
 
     if (!usuario) {
       const adminEmail = process.env.ADMIN_EMAIL
@@ -22,12 +22,12 @@ export async function POST(req: NextRequest) {
       const adminNombre = process.env.ADMIN_NOMBRE || "Admin"
 
       if (email === adminEmail && password === adminPassword) {
-        const allNegocios = getAllNegocios()
+        const allNegocios = await getAllNegocios()
         let negocioId: number
         if (allNegocios.length > 0) {
           negocioId = allNegocios[0].id
         } else {
-          const neg = createNegocio("Mi Empresa", "mi-empresa", email)
+          const neg = await createNegocio("Mi Empresa", "mi-empresa", email)
           negocioId = neg.id
         }
         usuario = await authCreateUsuario(email, password, adminNombre, "admin", negocioId) as any
@@ -63,10 +63,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const session = createSession(usuario.id)
+    const session = await createSession(usuario.id)
 
     let negocioSlug: string | null = null
-    const allNegocios = getAllNegocios()
+    const allNegocios = await getAllNegocios()
     if (allNegocios.length === 1) {
       negocioSlug = allNegocios[0].slug
     }

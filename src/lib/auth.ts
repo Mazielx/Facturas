@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt"
 import crypto from "crypto"
 import { cookies } from "next/headers"
-import { getMainDb } from "@/db"
+import { dbRun, dbGet } from "@/db/client"
 
 const SESSION_COOKIE = "session_id"
 const SESSION_EXPIRY_DAYS = 30
@@ -40,15 +40,15 @@ export function createSessionId(): string {
   return crypto.randomBytes(32).toString("hex")
 }
 
-export function createSession(usuarioId: number): Session {
-  const db = getMainDb()
+export async function createSession(usuarioId: number): Promise<Session> {
   const sessionId = createSessionId()
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + SESSION_EXPIRY_DAYS)
 
-  db.prepare(
-    "INSERT INTO sesiones (id, usuario_id, expires_at) VALUES (?, ?, ?)"
-  ).run(sessionId, usuarioId, expiresAt.toISOString())
+  await dbRun(
+    "INSERT INTO sesiones (id, usuario_id, expires_at) VALUES (?, ?, ?)",
+    { "1": sessionId, "2": usuarioId, "3": expiresAt.toISOString() }
+  )
 
   return {
     id: sessionId,
@@ -58,16 +58,14 @@ export function createSession(usuarioId: number): Session {
   }
 }
 
-export function getSessionUser(sessionId: string): (Usuario & { session: Session }) | null {
-  const db = getMainDb()
-  const row = db
-    .prepare(
-      `SELECT u.*, s.id as session_id, s.expires_at as session_expires_at, s.created_at as session_created_at
-       FROM usuarios u
-       JOIN sesiones s ON s.usuario_id = u.id
-       WHERE s.id = ? AND s.expires_at > datetime('now') AND u.activo = 1`
-    )
-    .get(sessionId) as (Usuario & { session_id: string; session_expires_at: string; session_created_at: string }) | undefined
+export async function getSessionUser(sessionId: string): Promise<(Usuario & { session: Session }) | null> {
+  const row = await dbGet<Usuario & { session_id: string; session_expires_at: string; session_created_at: string }>(
+    `SELECT u.*, s.id as session_id, s.expires_at as session_expires_at, s.created_at as session_created_at
+     FROM usuarios u
+     JOIN sesiones s ON s.usuario_id = u.id
+     WHERE s.id = ? AND s.expires_at > datetime('now') AND u.activo = 1`,
+    { "1": sessionId }
+  )
 
   if (!row) return null
 
@@ -116,49 +114,32 @@ export async function requireAdmin(): Promise<Usuario & { session: Session }> {
   return user
 }
 
-export function deleteSession(sessionId: string): void {
-  const db = getMainDb()
-  db.prepare("DELETE FROM sesiones WHERE id = ?").run(sessionId)
+export async function deleteSession(sessionId: string): Promise<void> {
+  await dbRun("DELETE FROM sesiones WHERE id = ?", { "1": sessionId })
 }
 
-export function deleteExpiredSessions(): void {
-  const db = getMainDb()
-  db.prepare("DELETE FROM sesiones WHERE expires_at < datetime('now')").run()
+export async function deleteExpiredSessions(): Promise<void> {
+  await dbRun("DELETE FROM sesiones WHERE expires_at < datetime('now')")
 }
 
-export function getUsuarioByEmail(email: string): Usuario | undefined {
-  const db = getMainDb()
-  return db.prepare("SELECT * FROM usuarios WHERE email = ?").get(email) as Usuario | undefined
+export async function getUsuarioByEmail(email: string): Promise<Usuario | undefined> {
+  return dbGet<Usuario>("SELECT * FROM usuarios WHERE email = ?", { "1": email })
 }
 
-export function createUsuario(
+export async function createUsuario(
   email: string,
   password: string,
   nombre: string,
   role: "admin" | "negocio" = "negocio",
   negocioId?: number
 ): Promise<Usuario> {
-  const db = getMainDb()
-  const passwordHash = bcrypt.hashSync(password, 12)
+  const passwordHash = await hashPassword(password)
 
-  const result = db
-    .prepare(
-      "INSERT INTO usuarios (email, password_hash, nombre, role, negocio_id) VALUES (?, ?, ?, ?, ?)"
-    )
-    .run(email, passwordHash, nombre, role, negocioId || null)
+  await dbRun(
+    "INSERT INTO usuarios (email, password_hash, nombre, role, negocio_id) VALUES (?, ?, ?, ?, ?)",
+    { "1": email, "2": passwordHash, "3": nombre, "4": role, "5": negocioId || null }
+  )
 
-  return Promise.resolve({
-    id: result.lastInsertRowid as number,
-    email,
-    password_hash: passwordHash,
-    nombre,
-    role,
-    negocio_id: negocioId || null,
-    activo: 1,
-    profile_photo_url: null,
-    email_changed_at: null,
-    telefono: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  })
+  const user = await dbGet<Usuario>("SELECT * FROM usuarios WHERE email = ?", { "1": email })
+  return user!
 }

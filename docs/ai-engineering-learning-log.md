@@ -306,6 +306,40 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 **Confidence level:** Can implement client-side preferences with SSR-safe patterns in Next.js
 
+### Entry 010: Migrating from better-sqlite3 (Sync) to Turso/libsql (Async)
+
+**Date:** 2026-07-25
+**Topic:** Rewriting an entire DB layer from synchronous better-sqlite3 to async @libsql/client for cloud deployment
+**Time spent:** ~90 minutes
+
+**What I learned:**
+- `@libsql/client`'s `execute()` expects `InValue[]` (positional arrays), NOT `Record<string, unknown>` named params — the `{ "1": val }` pattern used throughout the codebase was incompatible
+- Solved by adding a `toArgs()` converter in the DB client that extracts numeric keys from `{ "1": val, "2": val }` objects and returns sorted arrays — zero changes needed at 122+ call sites
+- better-sqlite3's `db.transaction()` (synchronous atomic block) has no direct equivalent in async libsql — replaced with sequential `await` calls (acceptable for this use case since each extraction is a single-user operation)
+- better-sqlite3's `.prepare().run()` pattern accepts named params with `@param` syntax; libsql only supports positional `?` — had to use `$N` named params in SQL with the `toArgs()` converter
+- The backup route's `.backup()` method is better-sqlite3-specific — converted to JSON data export (more portable for cloud DB)
+- Schema initialization went from multi-statement `db.exec()` to single-statement execution (Turso limitation)
+
+**The process:**
+1. Created `src/db/client.ts` — `dbExec`, `dbAll`, `dbGet`, `dbRun` wrappers with `toArgs()` converter
+2. Rewrote `src/db/index.ts` — all 25+ functions made async
+3. Rewrote `src/db/schema.ts` — single-statement execution for Turso
+4. Rewrote `src/lib/auth.ts`, `src/lib/tenant.ts`, `src/lib/api-auth.ts` — all async
+5. Updated all ~30 API route files — async DB calls, `WHERE negocio_slug = ?` filtering
+6. Rewrote `src/lib/extraction/index.ts` — removed `Database.Database` type dependency, async insert/detect
+7. Simplified `src/app/api/admin/backup/route.ts` — JSON export instead of file copy
+8. Updated `src/app/api/extract/route.ts` — removed `new Database()` instantiation
+9. Rewrote `__tests__/db.test.ts` — all tests now use libsql client
+
+**Mistakes I made:**
+- First attempt used `InArgs` type from libsql but the actual call sites still passed `Record<string, unknown>` — had to revert to keeping the function signatures as `Record<string, unknown>` and converting internally
+- Forgot to add `negocio_slug` column to test fixture — caused test failure
+
+**Key insight:**
+> "When migrating a database layer, create an adapter (client.ts) that matches the OLD calling convention, then migrate consumers one-by-one. This minimizes the blast radius of each change."
+
+**Confidence level:** Can migrate synchronous DB layers to async cloud DBs without breaking consumers
+
 ---
 
 ## Project Portfolio
@@ -410,4 +444,4 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
-*Last updated: 2026-07-24*
+*Last updated: 2026-07-25*

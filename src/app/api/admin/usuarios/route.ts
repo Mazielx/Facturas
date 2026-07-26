@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
-import { getAllUsuarios, createUsuario, updateUsuario, deleteUsuario, getUsuarioByEmail } from "@/db"
+import { getAllUsuarios, createUsuario as dbCreateUsuario, updateUsuario, deleteUsuario, getUsuarioByEmail } from "@/db"
 import { hashPassword } from "@/lib/auth"
 
 export async function GET() {
   try {
     await requireAdmin()
-    const usuarios = getAllUsuarios()
+    const usuarios = await getAllUsuarios()
     return NextResponse.json(usuarios)
   } catch (error) {
     if (error instanceof Error && error.message === "No autenticado") {
@@ -16,10 +16,7 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
     console.error("Error getting usuarios:", error)
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
 
@@ -30,22 +27,16 @@ export async function POST(req: NextRequest) {
     const { email, password, nombre, role, negocio_id } = body
 
     if (!email || !password || !nombre) {
-      return NextResponse.json(
-        { error: "Email, contrasena y nombre son requeridos" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Email, contrasena y nombre son requeridos" }, { status: 400 })
     }
 
-    const existingUser = getUsuarioByEmail(email)
+    const existingUser = await getUsuarioByEmail(email)
     if (existingUser) {
-      return NextResponse.json(
-        { error: "El email ya esta registrado" },
-        { status: 409 }
-      )
+      return NextResponse.json({ error: "El email ya esta registrado" }, { status: 409 })
     }
 
     const passwordHash = await hashPassword(password)
-    const nuevoUsuario = createUsuario(email, passwordHash, nombre, role || "negocio", negocio_id)
+    const nuevoUsuario = await dbCreateUsuario(email, passwordHash, nombre, role || "negocio", negocio_id)
 
     return NextResponse.json(nuevoUsuario, { status: 201 })
   } catch (error) {
@@ -56,10 +47,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
     console.error("Error creating usuario:", error)
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
 
@@ -74,16 +62,13 @@ export async function PUT(req: NextRequest) {
     }
 
     if (email) {
-      const existing = getUsuarioByEmail(email)
+      const existing = await getUsuarioByEmail(email)
       if (existing && existing.id !== id) {
-        return NextResponse.json(
-          { error: "El email ya esta registrado" },
-          { status: 409 }
-        )
+        return NextResponse.json({ error: "El email ya esta registrado" }, { status: 409 })
       }
     }
 
-    updateUsuario(id, { email, nombre, role, negocio_id, activo })
+    await updateUsuario(id, { email, nombre, role, negocio_id, activo })
     return NextResponse.json({ success: true })
   } catch (error) {
     if (error instanceof Error && error.message === "No autenticado") {
@@ -93,10 +78,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
     console.error("Error updating usuario:", error)
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
 
@@ -110,7 +92,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID requerido" }, { status: 400 })
     }
 
-    deleteUsuario(Number(id))
+    await deleteUsuario(Number(id))
     return NextResponse.json({ success: true })
   } catch (error) {
     if (error instanceof Error && error.message === "No autenticado") {
@@ -120,9 +102,6 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
     console.error("Error deleting usuario:", error)
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }

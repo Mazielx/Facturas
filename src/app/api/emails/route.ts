@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { getOAuth2ClientWithTokens, listEmailsWithAttachments, getAuthFromCuentaCorreo } from "@/lib/gmail"
-import { getCuentasCorreo, updateCuentaCorreoTokens, getNegocioById } from "@/db"
+import { getCuentasCorreo, updateCuentaCorreoTokens } from "@/db"
 import { requireActiveTenant } from "@/lib/tenant"
 import type { Credentials } from "google-auth-library"
 import type { EmailListResponse } from "@/lib/types"
@@ -16,7 +16,7 @@ export async function GET() {
   }
 
   if (negocioId) {
-    const cuentas = getCuentasCorreo(negocioId)
+    const cuentas = await getCuentasCorreo(negocioId)
     if (cuentas.length > 0) {
       const allEmails: EmailListResponse["emails"] = []
 
@@ -27,7 +27,7 @@ export async function GET() {
 
           const credentials = auth.credentials
           if (credentials.access_token && credentials.refresh_token && credentials.expiry_date) {
-            updateCuentaCorreoTokens(
+            await updateCuentaCorreoTokens(
               cuenta.id,
               credentials.access_token,
               credentials.refresh_token,

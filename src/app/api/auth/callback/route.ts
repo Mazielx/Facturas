@@ -1,6 +1,7 @@
 import { getTokensFromCode, getGoogleProfilePhoto } from "@/lib/gmail"
 import { getCurrentUser } from "@/lib/auth"
-import { getMainDb, createCuentaCorreo, getCuentaCorreoByEmail } from "@/db"
+import { createCuentaCorreo, getCuentaCorreoByEmail } from "@/db"
+import { dbRun } from "@/db/client"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
@@ -25,13 +26,14 @@ export async function GET(request: Request) {
         const photoUrl = await getGoogleProfilePhoto(tokens.access_token)
         const tokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null
 
-        const existing = getCuentaCorreoByEmail(negocioId, email)
+        const existing = await getCuentaCorreoByEmail(negocioId, email)
         if (existing) {
-          getMainDb().prepare(
-            "UPDATE cuentas_correo SET access_token = ?, refresh_token = ?, token_expiry = ?, profile_photo_url = ?, updated_at = datetime('now') WHERE id = ?"
-          ).run(tokens.access_token, tokens.refresh_token, tokenExpiry, photoUrl, existing.id)
+          await dbRun(
+            "UPDATE cuentas_correo SET access_token = ?, refresh_token = ?, token_expiry = ?, profile_photo_url = ?, updated_at = datetime('now') WHERE id = ?",
+            { "1": tokens.access_token, "2": tokens.refresh_token, "3": tokenExpiry, "4": photoUrl, "5": existing.id }
+          )
         } else {
-          createCuentaCorreo(negocioId, email, tokens.access_token, tokens.refresh_token, tokenExpiry || "", photoUrl || undefined)
+          await createCuentaCorreo(negocioId, email, tokens.access_token, tokens.refresh_token, tokenExpiry || "", photoUrl || undefined)
         }
       }
 
@@ -42,8 +44,7 @@ export async function GET(request: Request) {
     if (user && tokens.access_token) {
       const photoUrl = await getGoogleProfilePhoto(tokens.access_token)
       if (photoUrl) {
-        const db = getMainDb()
-        db.prepare("UPDATE usuarios SET profile_photo_url = ? WHERE id = ?").run(photoUrl, user.id)
+        await dbRun("UPDATE usuarios SET profile_photo_url = ? WHERE id = ?", { "1": photoUrl, "2": user.id })
       }
     }
 

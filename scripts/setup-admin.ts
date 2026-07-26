@@ -1,4 +1,4 @@
-import { getMainDb, getUsuarioByEmail } from "../src/db"
+import { ensureSchema, getUsuarioByEmail, createUsuario } from "../src/db"
 import { hashPassword } from "../src/lib/auth"
 
 async function main() {
@@ -11,9 +11,9 @@ async function main() {
     process.exit(1)
   }
 
-  const db = getMainDb()
+  await ensureSchema()
 
-  const existing = getUsuarioByEmail(email)
+  const existing = await getUsuarioByEmail(email)
   if (existing && !force) {
     console.error(`El usuario ${email} ya existe. Usa --force para sobreescribir.`)
     process.exit(1)
@@ -21,18 +21,16 @@ async function main() {
 
   if (existing && force) {
     const passwordHash = await hashPassword(password)
-    db.prepare("UPDATE usuarios SET password_hash = ?, activo = 1 WHERE id = ?").run(passwordHash, existing.id)
+    const { dbRun } = await import("../src/db/client")
+    await dbRun("UPDATE usuarios SET password_hash = ?, activo = 1 WHERE id = ?", { "1": passwordHash, "2": existing.id })
     console.log(`Usuario ${email} actualizado correctamente.`)
     return
   }
 
-  const passwordHash = await hashPassword(password)
-  const result = db
-    .prepare("INSERT INTO usuarios (email, password_hash, nombre, role) VALUES (?, ?, ?, ?)")
-    .run(email, passwordHash, "Administrador", "admin")
+  const user = await createUsuario(email, password, "Administrador", "admin")
 
   console.log("Usuario admin creado exitosamente:")
-  console.log(`  ID: ${result.lastInsertRowid}`)
+  console.log(`  ID: ${user.id}`)
   console.log(`  Email: ${email}`)
   console.log(`  Nombre: Administrador`)
   console.log(`  Rol: admin`)

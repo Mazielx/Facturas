@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireActiveTenant } from "@/lib/tenant"
+import { dbGet, dbAll, dbRun } from "@/db/client"
+import { ensureSchema } from "@/db"
 
 export async function GET() {
   try {
-    const { db } = await requireActiveTenant()
-    const etiquetas = db.prepare("SELECT * FROM etiquetas ORDER BY nombre").all()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
+    const etiquetas = await dbAll(
+      "SELECT * FROM etiquetas WHERE negocio_slug = ? ORDER BY nombre",
+      { "1": tenant.slug }
+    )
     return NextResponse.json(etiquetas)
   } catch (error) {
     console.error("Error fetching etiquetas:", error)
@@ -17,7 +23,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { db } = await requireActiveTenant()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
     const body = await req.json()
     const { nombre, color } = body
 
@@ -25,14 +32,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Nombre requerido" }, { status: 400 })
     }
 
-    const existing = db.prepare("SELECT id FROM etiquetas WHERE nombre = ?").get(nombre)
+    const existing = await dbGet(
+      "SELECT id FROM etiquetas WHERE nombre = ? AND negocio_slug = ?",
+      { "1": nombre, "2": tenant.slug }
+    )
     if (existing) {
       return NextResponse.json({ error: "La etiqueta ya existe" }, { status: 409 })
     }
 
-    const result = db
-      .prepare("INSERT INTO etiquetas (nombre, color) VALUES (?, ?)")
-      .run(nombre, color || "#6b7280")
+    const result = await dbRun(
+      "INSERT INTO etiquetas (nombre, color, negocio_slug) VALUES (?, ?, ?)",
+      { "1": nombre, "2": color || "#6b7280", "3": tenant.slug }
+    )
 
     return NextResponse.json({
       id: result.lastInsertRowid,
@@ -50,7 +61,8 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { db } = await requireActiveTenant()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
     const { searchParams } = new URL(req.url)
     const id = searchParams.get("id")
 
@@ -58,7 +70,10 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID requerido" }, { status: 400 })
     }
 
-    db.prepare("DELETE FROM etiquetas WHERE id = ?").run(Number(id))
+    await dbRun(
+      "DELETE FROM etiquetas WHERE id = ? AND negocio_slug = ?",
+      { "1": Number(id), "2": tenant.slug }
+    )
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error deleting etiqueta:", error)

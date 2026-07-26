@@ -1,42 +1,27 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import Database from "better-sqlite3"
 import { initializeSchema } from "@/db/schema"
-import path from "path"
-import fs from "fs"
+import { dbGet, dbAll, dbRun, dbExec, getDb } from "@/db/client"
 
-const TEST_DB_PATH = path.join(process.cwd(), "data", "test.db")
-
-let db: Database.Database
-
-beforeAll(() => {
-  const dataDir = path.dirname(TEST_DB_PATH)
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true })
-  }
-  db = new Database(TEST_DB_PATH)
-  db.pragma("journal_mode = WAL")
-  db.pragma("foreign_keys = ON")
-  initializeSchema(db)
+beforeAll(async () => {
+  process.env.TURSO_DATABASE_URL = "file:data/test.db"
+  await initializeSchema()
 })
 
 afterAll(() => {
-  db.close()
-  if (fs.existsSync(TEST_DB_PATH)) {
-    fs.unlinkSync(TEST_DB_PATH)
-  }
-  const walPath = TEST_DB_PATH + "-wal"
-  const shmPath = TEST_DB_PATH + "-shm"
-  if (fs.existsSync(walPath)) fs.unlinkSync(walPath)
-  if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath)
+  getDb().close()
+  try {
+    const fs = require("fs")
+    const paths = ["data/test.db", "data/test.db-wal", "data/test.db-shm"]
+    for (const p of paths) {
+      if (fs.existsSync(p)) fs.unlinkSync(p)
+    }
+  } catch {}
 })
 
 describe("Database Schema", () => {
-  it("creates all required tables", () => {
-    const tables = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-      .all()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((row: any) => row.name)
+  it("creates all required tables", async () => {
+    const rows = await dbAll<{ name: string }>("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    const tables = rows.map((r) => r.name)
 
     expect(tables).toContain("facturas")
     expect(tables).toContain("lineas_factura")
@@ -44,12 +29,9 @@ describe("Database Schema", () => {
     expect(tables).toContain("procesamiento_log")
   })
 
-  it("creates required indexes", () => {
-    const indexes = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
-      .all()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((row: any) => row.name)
+  it("creates required indexes", async () => {
+    const rows = await dbAll<{ name: string }>("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
+    const indexes = rows.map((r) => r.name)
 
     expect(indexes).toContain("idx_facturas_emisor_nif")
     expect(indexes).toContain("idx_facturas_fecha_emision")
@@ -63,6 +45,7 @@ describe("Database Schema", () => {
 
 describe("Invoice CRUD", () => {
   const testFactura = {
+    negocio_slug: "test",
     emisor_nombre: "Test Corp S.L.",
     emisor_nif: "B11111111",
     emisor_direccion: "Calle Test 1",
@@ -106,47 +89,45 @@ describe("Invoice CRUD", () => {
 
   let facturaId: number
 
-  it("inserts a factura", () => {
+  it("inserts a factura", async () => {
     const columns = Object.keys(testFactura)
-    const placeholders = columns.map(() => "?").join(", ")
+    const placeholders = columns.map((_, i) => `$${i + 1}`).join(", ")
     const values = Object.values(testFactura)
 
-    const result = db
-      .prepare(`INSERT INTO facturas (${columns.join(", ")}) VALUES (${placeholders})`)
-      .run(...values)
+    const result = await dbRun(
+      `INSERT INTO facturas (${columns.join(", ")}) VALUES (${placeholders})`,
+      Object.fromEntries(columns.map((c, i) => [String(i + 1), values[i]]))
+    )
 
-    facturaId = result.lastInsertRowid as number
+    facturaId = result.lastInsertRowid
     expect(facturaId).toBeGreaterThan(0)
   })
 
-  it("retrieves the inserted factura", () => {
-    const row = db.prepare("SELECT * FROM facturas WHERE id = ?").get(facturaId) as Record<string, unknown>
+  it("retrieves the inserted factura", async () => {
+    const row = await dbGet<Record<string, unknown>>("SELECT * FROM facturas WHERE id = ?", { "1": facturaId })
 
-    expect(row.emisor_nombre).toBe("Test Corp S.L.")
-    expect(row.emisor_nif).toBe("B11111111")
-    expect(row.receptor_nombre).toBe("Cliente Test S.A.")
-    expect(row.numero_factura).toBe("TEST-001")
-    expect(row.total).toBe(1210)
-    expect(row.estado).toBe("pendiente")
-    expect(row.moneda).toBe("EUR")
-    expect(row.metodo_pago).toBe("transferencia")
+    expect(row?.emisor_nombre).toBe("Test Corp S.L.")
+    expect(row?.emisor_nif).toBe("B11111111")
+    expect(row?.receptor_nombre).toBe("Cliente Test S.A.")
+    expect(row?.numero_factura).toBe("TEST-001")
+    expect(row?.total).toBe(1210)
+    expect(row?.estado).toBe("pendiente")
+    expect(row?.moneda).toBe("EUR")
+    expect(row?.metodo_pago).toBe("transferencia")
   })
 
-  it("inserts line items", () => {
-    const result = db
-      .prepare(
-        `INSERT INTO lineas_factura (factura_id, numero_linea, descripcion, cantidad, precio_unitario, descuento, tipo_iva, subtotal, total)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(facturaId, 1, "Producto A", 5, 100, 0, 21, 500, 605)
+  it("inserts line items", async () => {
+    const result = await dbRun(
+      `INSERT INTO lineas_factura (factura_id, numero_linea, descripcion, cantidad, precio_unitario, descuento, tipo_iva, subtotal, total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      { "1": facturaId, "2": 1, "3": "Producto A", "4": 5, "5": 100, "6": 0, "7": 21, "8": 500, "9": 605 }
+    )
 
     expect(result.lastInsertRowid).toBeGreaterThan(0)
   })
 
-  it("retrieves line items with factura", () => {
-    const lineas = db
-      .prepare("SELECT * FROM lineas_factura WHERE factura_id = ?")
-      .all(facturaId) as Record<string, unknown>[]
+  it("retrieves line items with factura", async () => {
+    const lineas = await dbAll<Record<string, unknown>>("SELECT * FROM lineas_factura WHERE factura_id = ?", { "1": facturaId })
 
     expect(lineas).toHaveLength(1)
     expect(lineas[0].descripcion).toBe("Producto A")
@@ -155,62 +136,62 @@ describe("Invoice CRUD", () => {
     expect(lineas[0].subtotal).toBe(500)
   })
 
-  it("enforces unique adjunto_hash", () => {
-    expect(() => {
-      db.prepare("INSERT INTO facturas (emisor_nombre, numero_factura, fecha_emision, base_imponible, cuota_iva, total, adjunto_hash) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
-        "Duplicate Corp",
-        "DUP-001",
-        "2024-01-01",
-        100,
-        21,
-        121,
-        "hash_test_001"
+  it("enforces unique adjunto_hash", async () => {
+    try {
+      await dbRun(
+        "INSERT INTO facturas (negocio_slug, emisor_nombre, numero_factura, fecha_emision, base_imponible, cuota_iva, total, adjunto_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        { "1": "test", "2": "Duplicate Corp", "3": "DUP-001", "4": "2024-01-01", "5": 100, "6": 21, "7": 121, "8": "hash_test_001" }
       )
-    }).toThrow()
+      expect.fail("Should have thrown")
+    } catch {
+      expect(true).toBe(true)
+    }
   })
 
-  it("filters by estado", () => {
-    db.prepare("UPDATE facturas SET estado = ? WHERE id = ?").run("pagada", facturaId)
+  it("filters by estado", async () => {
+    await dbRun("UPDATE facturas SET estado = ? WHERE id = ?", { "1": "pagada", "2": facturaId })
 
-    const row = db.prepare("SELECT estado FROM facturas WHERE id = ?").get(facturaId) as Record<string, unknown>
-    expect(row.estado).toBe("pagada")
+    const row = await dbGet<Record<string, unknown>>("SELECT estado FROM facturas WHERE id = ?", { "1": facturaId })
+    expect(row?.estado).toBe("pagada")
 
-    db.prepare("UPDATE facturas SET estado = ? WHERE id = ?").run("pendiente", facturaId)
+    await dbRun("UPDATE facturas SET estado = ? WHERE id = ?", { "1": "pendiente", "2": facturaId })
   })
 
-  it("searches by text", () => {
-    const results = db
-      .prepare("SELECT * FROM facturas WHERE numero_factura LIKE ? OR emisor_nombre LIKE ?")
-      .all("%TEST%", "%TEST%") as Record<string, unknown>[]
+  it("searches by text", async () => {
+    const results = await dbAll<Record<string, unknown>>(
+      "SELECT * FROM facturas WHERE numero_factura LIKE ? OR emisor_nombre LIKE ?",
+      { "1": "%TEST%", "2": "%TEST%" }
+    )
 
     expect(results.length).toBeGreaterThanOrEqual(1)
     expect(results.some((r) => r.numero_factura === "TEST-001")).toBe(true)
   })
 
-  it("deletes factura cascades to lineas", () => {
-    db.prepare("DELETE FROM facturas WHERE id = ?").run(facturaId)
+  it("deletes factura cascades to lineas", async () => {
+    await dbRun("DELETE FROM facturas WHERE id = ?", { "1": facturaId })
 
-    const lineas = db.prepare("SELECT * FROM lineas_factura WHERE factura_id = ?").all(facturaId)
+    const lineas = await dbAll("SELECT * FROM lineas_factura WHERE factura_id = ?", { "1": facturaId })
     expect(lineas).toHaveLength(0)
 
-    const remaining = db.prepare("SELECT * FROM facturas WHERE id = ?").get(facturaId)
+    const remaining = await dbGet("SELECT * FROM facturas WHERE id = ?", { "1": facturaId })
     expect(remaining).toBeUndefined()
   })
 })
 
 describe("Processing Log", () => {
-  it("inserts and retrieves log entries", () => {
-    const result = db
-      .prepare("INSERT INTO procesamiento_log (email_id, adjunto_filename, status) VALUES (?, ?, ?)")
-      .run("test_email", "test.pdf", "processing")
+  it("inserts and retrieves log entries", async () => {
+    const result = await dbRun(
+      "INSERT INTO procesamiento_log (email_id, adjunto_filename, status) VALUES (?, ?, ?)",
+      { "1": "test_email", "2": "test.pdf", "3": "processing" }
+    )
 
-    const logId = result.lastInsertRowid as number
-    const entry = db.prepare("SELECT * FROM procesamiento_log WHERE id = ?").get(logId) as Record<string, unknown>
+    const logId = result.lastInsertRowid
+    const entry = await dbGet<Record<string, unknown>>("SELECT * FROM procesamiento_log WHERE id = ?", { "1": logId })
 
-    expect(entry.email_id).toBe("test_email")
-    expect(entry.adjunto_filename).toBe("test.pdf")
-    expect(entry.status).toBe("processing")
+    expect(entry?.email_id).toBe("test_email")
+    expect(entry?.adjunto_filename).toBe("test.pdf")
+    expect(entry?.status).toBe("processing")
 
-    db.prepare("UPDATE procesamiento_log SET status = ?, factura_id = NULL WHERE id = ?").run("success", logId)
+    await dbRun("UPDATE procesamiento_log SET status = ?, factura_id = NULL WHERE id = ?", { "1": "success", "2": logId })
   })
 })

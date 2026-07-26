@@ -1,24 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireActiveTenant } from "@/lib/tenant"
+import { dbAll } from "@/db/client"
+import { ensureSchema } from "@/db"
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { db } = await requireActiveTenant()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
     const { id } = await params
     const facturaId = Number(id)
 
-    const duplicados = db
-      .prepare(
-        `SELECT dp.*, f.numero_factura, f.emisor_nombre, f.total, f.fecha_emision
-         FROM duplicados_potenciales dp
-         JOIN facturas f ON f.id = dp.duplicada_de_id
-         WHERE dp.factura_id = ?
-         ORDER BY dp.score DESC`
-      )
-      .all(facturaId)
+    const duplicados = await dbAll(
+      `SELECT dp.*, f.numero_factura, f.emisor_nombre, f.total, f.fecha_emision
+       FROM duplicados_potenciales dp
+       JOIN facturas f ON f.id = dp.duplicada_de_id
+       WHERE dp.factura_id = ? AND dp.negocio_slug = ? AND f.negocio_slug = ?
+       ORDER BY dp.score DESC`,
+      { "1": facturaId, "2": tenant.slug, "3": tenant.slug }
+    )
 
     return NextResponse.json(duplicados)
   } catch (error) {

@@ -7,7 +7,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
   const { slug } = await params
-  const negocio = getNegocioBySlug(slug)
+  const negocio = await getNegocioBySlug(slug)
   if (!negocio) return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
 
   if (user.role === "negocio" && user.negocio_id !== negocio.id) {
@@ -24,10 +24,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
 
   const { slug } = await params
-  const { getNegocioBySlug } = await import("@/db")
-  const negocio = getNegocioBySlug(slug)
+  const negocio = await getNegocioBySlug(slug)
   if (!negocio) return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
-  deleteNegocio(negocio.id)
+  await deleteNegocio(negocio.id)
   return NextResponse.json({ ok: true })
 }
 
@@ -38,14 +37,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ sl
   }
 
   const { slug } = await params
-  const { getNegocioBySlug } = await import("@/db")
-  const negocio = getNegocioBySlug(slug)
+  const negocio = await getNegocioBySlug(slug)
   if (!negocio) return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
   const body = await request.json()
-  const result = updateNegocio(negocio.id, body)
+  const result = await updateNegocio(negocio.id, body)
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 400 })
   }
-  const updated = getNegocioBySlug(slug)
+  const updated = await getNegocioBySlug(slug)
   return NextResponse.json(updated)
 }

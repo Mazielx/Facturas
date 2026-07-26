@@ -7,7 +7,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ sl
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
   const { slug } = await params
-  const negocio = getNegocioBySlug(slug)
+  const negocio = await getNegocioBySlug(slug)
   if (!negocio) return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
 
   if (user.role === "negocio" && user.negocio_id !== negocio.id) {

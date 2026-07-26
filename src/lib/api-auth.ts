@@ -1,5 +1,6 @@
 import crypto from "crypto"
-import { getMainDb } from "@/db"
+import { ensureSchema } from "@/db"
+import { dbGet, dbAll, dbRun } from "@/db/client"
 
 export interface ApiKey {
   id: number
@@ -21,57 +22,68 @@ export function hashApiKey(key: string): string {
   return crypto.createHash("sha256").update(key).digest("hex")
 }
 
-export function createApiKey(
+export async function createApiKey(
   negocioId: number,
   nombre: string,
   permisos: string = "read"
-): { key: string; apiKey: ApiKey } {
-  const db = getMainDb()
+): Promise<{ key: string; apiKey: ApiKey }> {
+  await ensureSchema()
   const key = generateApiKey()
   const keyHash = hashApiKey(key)
   const keyPrefix = key.substring(0, 11)
 
-  const result = db
-    .prepare(
-      "INSERT INTO api_keys (key_hash, key_prefix, negocio_id, nombre, permisos) VALUES (?, ?, ?, ?, ?)"
-    )
-    .run(keyHash, keyPrefix, negocioId, nombre, permisos)
+  const result = await dbRun(
+    "INSERT INTO api_keys (key_hash, key_prefix, negocio_id, nombre, permisos) VALUES (?, ?, ?, ?, ?)",
+    { "1": keyHash, "2": keyPrefix, "3": negocioId, "4": nombre, "5": permisos }
+  )
 
-  const apiKey = db
-    .prepare("SELECT * FROM api_keys WHERE id = ?")
-    .get(result.lastInsertRowid) as ApiKey
+  const apiKey = await dbGet<ApiKey>(
+    "SELECT * FROM api_keys WHERE id = ?",
+    { "1": result.lastInsertRowid }
+  )
 
-  return { key, apiKey }
+  return { key, apiKey: apiKey! }
 }
 
-export function validateApiKey(key: string): ApiKey | null {
-  const db = getMainDb()
+export async function validateApiKey(key: string): Promise<ApiKey | null> {
+  await ensureSchema()
   const keyHash = hashApiKey(key)
 
-  const apiKey = db
-    .prepare("SELECT * FROM api_keys WHERE key_hash = ? AND activa = 1")
-    .get(keyHash) as ApiKey | undefined
+  const apiKey = await dbGet<ApiKey>(
+    "SELECT * FROM api_keys WHERE key_hash = ? AND activa = 1",
+    { "1": keyHash }
+  )
 
   if (!apiKey) return null
 
-  db.prepare("UPDATE api_keys SET ultimo_uso = datetime('now') WHERE id = ?").run(apiKey.id)
+  await dbRun(
+    "UPDATE api_keys SET ultimo_uso = datetime('now') WHERE id = ?",
+    { "1": apiKey.id }
+  )
 
   return apiKey
 }
 
-export function getApiKeysByNegocio(negocioId: number): ApiKey[] {
-  const db = getMainDb()
-  return db
-    .prepare("SELECT * FROM api_keys WHERE negocio_id = ? ORDER BY created_at DESC")
-    .all(negocioId) as ApiKey[]
+export async function getApiKeysByNegocio(negocioId: number): Promise<ApiKey[]> {
+  await ensureSchema()
+  return dbAll<ApiKey>(
+    "SELECT * FROM api_keys WHERE negocio_id = ? ORDER BY created_at DESC",
+    { "1": negocioId }
+  )
 }
 
-export function deleteApiKey(id: number): void {
-  const db = getMainDb()
-  db.prepare("DELETE FROM api_keys WHERE id = ?").run(id)
+export async function deleteApiKey(id: number): Promise<void> {
+  await ensureSchema()
+  await dbRun(
+    "DELETE FROM api_keys WHERE id = ?",
+    { "1": id }
+  )
 }
 
-export function toggleApiKey(id: number, activa: boolean): void {
-  const db = getMainDb()
-  db.prepare("UPDATE api_keys SET activa = ? WHERE id = ?").run(activa ? 1 : 0, id)
+export async function toggleApiKey(id: number, activa: boolean): Promise<void> {
+  await ensureSchema()
+  await dbRun(
+    "UPDATE api_keys SET activa = ? WHERE id = ?",
+    { "1": activa ? 1 : 0, "2": id }
+  )
 }

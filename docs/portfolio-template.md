@@ -132,8 +132,9 @@ Each project follows this format:
 | Documentation | Intermediate | Learning log, prompt reference, case studies |
 | Code Quality | Intermediate | TypeScript strict, 25 tests, lint passes |
 | Deployment Debugging | Beginner+ | Railway HTTPS cookie + CDN cache + SSR diagnosis |
-| Multi-Tenant Architecture | Intermediate | SQLite per-business DBs, session auth, plan gating |
+| Multi-Tenant Architecture | Intermediate | Single-DB with negocio_slug filtering, session auth, plan gating |
 | SSR-Safe Client Features | Beginner+ | Theme toggle with localStorage, suppressHydrationWarning, inline init script |
+| Database Migration | Intermediate | Sync better-sqlite3 → Async libsql/Turso, adapter pattern, zero-downtime call-site migration |
 
 ---
 
@@ -194,6 +195,8 @@ Verify what's actually failing and fix it.
 | 2026-07-20 | Created real-time dashboard with charts | Visual business intelligence |
 | 2026-07-22 | Fixed HTTPS cookie auth for Railway deployment | Production-ready auth |
 | 2026-07-22 | Added multi-email account system | Premium feature architecture |
+| 2026-07-24 | Implemented dark/light/system theme toggle | SSR-safe cross-cutting concern |
+| 2026-07-25 | Migrated DB layer from better-sqlite3 to Turso/libsql | Zero-cost cloud DB, async architecture |
 
 #### Mistakes That Taught Me
 
@@ -270,4 +273,4 @@ Verify what's actually failing and fix it.
 ---
 
 *Template by: Ian Maziel*
-*Last updated: 2026-07-24*
+*Last updated: 2026-07-25*

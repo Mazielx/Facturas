@@ -1,9 +1,12 @@
 import { requireActiveTenant } from "@/lib/tenant"
+import { dbAll } from "@/db/client"
+import { ensureSchema } from "@/db"
 import * as XLSX from "xlsx"
 
 export async function GET(request: Request) {
   try {
-    const { db } = await requireActiveTenant()
+    const tenant = await requireActiveTenant()
+    await ensureSchema()
     const { searchParams } = new URL(request.url)
 
     const search = searchParams.get("search") || ""
@@ -14,37 +17,40 @@ export async function GET(request: Request) {
     const moneda = searchParams.get("moneda") || ""
     const format = searchParams.get("format") || "csv"
 
-    let whereClause = "WHERE 1=1"
-    const params: (string | number)[] = []
+    let whereClause = "WHERE negocio_slug = ?"
+    const args: Record<string, unknown> = { "1": tenant.slug }
+    let paramIdx = 2
 
     if (search) {
       whereClause += " AND (numero_factura LIKE ? OR emisor_nombre LIKE ? OR receptor_nombre LIKE ?)"
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`)
+      args[String(paramIdx++)] = `%${search}%`
+      args[String(paramIdx++)] = `%${search}%`
+      args[String(paramIdx++)] = `%${search}%`
     }
 
     if (fechaDesde) {
       whereClause += " AND fecha_emision >= ?"
-      params.push(fechaDesde)
+      args[String(paramIdx++)] = fechaDesde
     }
 
     if (fechaHasta) {
       whereClause += " AND fecha_emision <= ?"
-      params.push(fechaHasta)
+      args[String(paramIdx++)] = fechaHasta
     }
 
     if (emisor) {
       whereClause += " AND emisor_nombre LIKE ?"
-      params.push(`%${emisor}%`)
+      args[String(paramIdx++)] = `%${emisor}%`
     }
 
     if (estado) {
       whereClause += " AND estado = ?"
-      params.push(estado)
+      args[String(paramIdx++)] = estado
     }
 
     if (moneda) {
       whereClause += " AND moneda = ?"
-      params.push(moneda)
+      args[String(paramIdx++)] = moneda
     }
 
     const query = `
@@ -56,7 +62,7 @@ export async function GET(request: Request) {
       ORDER BY fecha_emision DESC
     `
 
-    const facturas = db.prepare(query).all(...params) as Record<string, unknown>[]
+    const facturas = await dbAll(query, args)
 
     if (format === "xlsx") {
       const worksheetData = facturas.map((f) => ({
@@ -131,7 +137,7 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("Error exporting facturas:", error)
-    if (error instanceof Error && error.message === "No hay negocio seleccionado") {
+    if (error instanceof Error && error.message.includes("No hay negocio")) {
       return new Response(JSON.stringify({ error: "No hay negocio seleccionado" }), { status: 401, headers: { "Content-Type": "application/json" } })
     }
     return new Response("Error al exportar", { status: 500 })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateApiKey } from "@/lib/api-auth"
-import { getTenantDb, getNegocioById } from "@/db"
+import { getNegocioById } from "@/db"
+import { dbGet, dbAll, dbRun } from "@/db/client"
 
 async function authApi(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
@@ -21,21 +22,26 @@ export async function GET(
       return NextResponse.json({ error: "API key invalida" }, { status: 401 })
     }
 
-    const negocio = getNegocioById(apiKey.negocio_id)
+    const negocio = await getNegocioById(apiKey.negocio_id)
     if (!negocio) {
       return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
     }
 
-    const db = getTenantDb(negocio.slug)
     const { id } = await params
 
-    const factura = db.prepare("SELECT * FROM facturas WHERE id = ?").get(Number(id))
+    const factura = await dbGet(
+      "SELECT * FROM facturas WHERE id = ? AND negocio_slug = ?",
+      { "1": Number(id), "2": negocio.slug }
+    )
 
     if (!factura) {
       return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 })
     }
 
-    const lineas = db.prepare("SELECT * FROM lineas_factura WHERE factura_id = ?").all(Number(id))
+    const lineas = await dbAll(
+      "SELECT * FROM lineas_factura WHERE factura_id = ?",
+      { "1": Number(id) }
+    )
 
     return NextResponse.json({ ...factura, lineas })
   } catch (error) {
@@ -58,15 +64,17 @@ export async function DELETE(
       return NextResponse.json({ error: "Sin permisos de escritura" }, { status: 403 })
     }
 
-    const negocio = getNegocioById(apiKey.negocio_id)
+    const negocio = await getNegocioById(apiKey.negocio_id)
     if (!negocio) {
       return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
     }
 
-    const db = getTenantDb(negocio.slug)
     const { id } = await params
 
-    db.prepare("DELETE FROM facturas WHERE id = ?").run(Number(id))
+    await dbRun(
+      "DELETE FROM facturas WHERE id = ? AND negocio_slug = ?",
+      { "1": Number(id), "2": negocio.slug }
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {
