@@ -86,6 +86,13 @@ export async function processAttachment(
       datos = parseXml(content.toString("utf-8"))
       source = "xml"
     } else if (mimeType === "application/pdf" || filename.toLowerCase().endsWith(".pdf")) {
+      const existingXml = await dbGet<{ id: number }>(
+        "SELECT id FROM facturas WHERE email_id = ? AND adjunto_nombre LIKE '%.xml' AND negocio_slug = ?",
+        { "1": emailId, "2": negocioSlug || "default" }
+      )
+      if (existingXml) {
+        return { success: true, facturaId: existingXml.id, error: "XML ya procesado para este email" }
+      }
       datos = await parsePdf(content)
       source = "pdf"
     } else {
@@ -106,6 +113,10 @@ export async function processAttachment(
 
     const confianzaScore = calcularConfianza(datos, source)
     const confianzaNivel = nivelConfianza(confianzaScore)
+
+    if (source === "pdf" && confianzaNivel === "baja") {
+      return { success: false, error: `Archivo no es una factura válida: ${filename}` }
+    }
 
     const facturaId = await insertFactura(datos, {
       emailId,
