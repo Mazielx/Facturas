@@ -62,21 +62,13 @@ export async function updateNegocio(id: number, data: { nombre?: string; email?:
       const changedAt = new Date(current.nombre_changed_at)
       const now = new Date()
       const monthsDiff = (now.getFullYear() - changedAt.getFullYear()) * 12 + (now.getMonth() - changedAt.getMonth())
-      if (monthsDiff < 6) {
-        return { error: `Solo puedes cambiar el nombre una vez cada 6 meses. Intenta de nuevo en ${6 - monthsDiff} mes(es)` }
+      if (monthsDiff < 8) {
+        return { error: `Solo puedes cambiar el nombre una vez cada 8 meses. Intenta de nuevo en ${8 - monthsDiff} mes(es)` }
       }
     }
     fields.push(`nombre = ?`)
     args[String(idx++)] = data.nombre
     fields.push(`nombre_changed_at = datetime('now')`)
-    const newSlug = data.nombre.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-    if (newSlug && newSlug !== current.slug) {
-      const slugExists = await dbGet<{ id: number }>("SELECT id FROM negocios WHERE slug = ? AND id != ?", { "1": newSlug, "2": id })
-      if (!slugExists) {
-        fields.push(`slug = ?`)
-        args[String(idx++)] = newSlug
-      }
-    }
   }
 
   if (data.email !== undefined && data.email !== current.email) {
@@ -84,8 +76,8 @@ export async function updateNegocio(id: number, data: { nombre?: string; email?:
       const changedAt = new Date(current.email_changed_at)
       const now = new Date()
       const monthsDiff = (now.getFullYear() - changedAt.getFullYear()) * 12 + (now.getMonth() - changedAt.getMonth())
-      if (monthsDiff < 6) {
-        return { error: `Solo puedes cambiar el email una vez cada 6 meses. Intenta de nuevo en ${6 - monthsDiff} mes(es)` }
+      if (monthsDiff < 8) {
+        return { error: `Solo puedes cambiar el email una vez cada 8 meses. Intenta de nuevo en ${8 - monthsDiff} mes(es)` }
       }
     }
     fields.push(`email = ?`)
