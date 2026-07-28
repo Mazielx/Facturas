@@ -57,7 +57,7 @@ export default function EmpresaPage() {
     const changedAt = new Date(negocio.nombre_changed_at)
     const now = new Date()
     const monthsDiff = (now.getFullYear() - changedAt.getFullYear()) * 12 + (now.getMonth() - changedAt.getMonth())
-    return monthsDiff >= 6
+    return monthsDiff >= 8
   }, [negocio?.nombre_changed_at])
 
   const canChangeEmail = useCallback(() => {
@@ -65,14 +65,14 @@ export default function EmpresaPage() {
     const changedAt = new Date(negocio.email_changed_at)
     const now = new Date()
     const monthsDiff = (now.getFullYear() - changedAt.getFullYear()) * 12 + (now.getMonth() - changedAt.getMonth())
-    return monthsDiff >= 6
+    return monthsDiff >= 8
   }, [negocio?.email_changed_at])
 
   const nombreCooldownText = useCallback(() => {
     if (!negocio?.nombre_changed_at) return null
     const changedAt = new Date(negocio.nombre_changed_at)
     const nextAvailable = new Date(changedAt)
-    nextAvailable.setMonth(nextAvailable.getMonth() + 6)
+    nextAvailable.setMonth(nextAvailable.getMonth() + 8)
     const now = new Date()
     if (now >= nextAvailable) return null
     const monthsLeft = (nextAvailable.getFullYear() - now.getFullYear()) * 12 + (nextAvailable.getMonth() - now.getMonth())
@@ -83,7 +83,7 @@ export default function EmpresaPage() {
     if (!negocio?.email_changed_at) return null
     const changedAt = new Date(negocio.email_changed_at)
     const nextAvailable = new Date(changedAt)
-    nextAvailable.setMonth(nextAvailable.getMonth() + 6)
+    nextAvailable.setMonth(nextAvailable.getMonth() + 8)
     const now = new Date()
     if (now >= nextAvailable) return null
     const monthsLeft = (nextAvailable.getFullYear() - now.getFullYear()) * 12 + (nextAvailable.getMonth() - now.getMonth())
@@ -142,6 +142,12 @@ export default function EmpresaPage() {
   const handleSaveNombre = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!negocio) return
+
+    const confirmed = window.confirm(
+      `¿Estás seguro de cambiar el nombre de la empresa a "${nombre}"?\n\nSolo puedes cambiar el nombre una vez cada 8 meses.`
+    )
+    if (!confirmed) return
+
     setSaving(true)
     setError(null)
     setMessage(null)
@@ -153,17 +159,24 @@ export default function EmpresaPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || "Error al guardar"); return }
-      setMessage("Nombre actualizado")
+      setMessage("Nombre de empresa actualizado correctamente")
       setNegocio(data)
       setInitialNombre(data.nombre || "")
       setNombre(data.nombre || "")
       setShowNombre(false)
+      setTimeout(() => window.location.reload(), 800)
     } catch { setError("Error de conexion") } finally { setSaving(false) }
   }
 
   const handleSaveEmail = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!negocio) return
+
+    const confirmed = window.confirm(
+      `¿Estás seguro de cambiar el email de contacto a "${email}"?\n\nSolo puedes cambiar el email una vez cada 8 meses.`
+    )
+    if (!confirmed) return
+
     setSaving(true)
     setError(null)
     setMessage(null)
@@ -175,11 +188,12 @@ export default function EmpresaPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || "Error al guardar"); return }
-      setMessage("Email de contacto actualizado")
+      setMessage("Email de contacto actualizado correctamente")
       setNegocio(data)
       setInitialEmail(data.email || "")
       setEmail(data.email || "")
       setShowEmail(false)
+      setTimeout(() => window.location.reload(), 800)
     } catch { setError("Error de conexion") } finally { setSaving(false) }
   }
 
@@ -283,10 +297,14 @@ export default function EmpresaPage() {
             <h2 className="font-medium text-zinc-900 dark:text-zinc-100">Nombre de la empresa</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{negocio?.nombre}</p>
             {!showNombre ? (
-              <button type="button" onClick={() => setShowNombre(true)} disabled={!canChangeNombre()}
-                className="mt-3 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                Cambiar nombre
-              </button>
+              canChangeNombre() ? (
+                <button type="button" onClick={() => setShowNombre(true)}
+                  className="mt-3 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                  Cambiar nombre
+                </button>
+              ) : (
+                <p className="mt-3 text-sm text-zinc-400 dark:text-zinc-500">{nombreCooldownText()}</p>
+              )
             ) : (
               <form onSubmit={handleSaveNombre} className="mt-4 space-y-3">
                 <input type="text" value={nombre} onChange={(e) => handleNombreChange(e.target.value)} disabled={nombreDisabled} maxLength={100}
@@ -319,10 +337,14 @@ export default function EmpresaPage() {
             <h2 className="font-medium text-zinc-900 dark:text-zinc-100">Email de contacto</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{negocio?.email || "Sin email de contacto"}</p>
             {!showEmail ? (
-              <button type="button" onClick={() => setShowEmail(true)} disabled={!canChangeEmail()}
-                className="mt-3 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                Cambiar email
-              </button>
+              canChangeEmail() ? (
+                <button type="button" onClick={() => setShowEmail(true)}
+                  className="mt-3 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                  Cambiar email
+                </button>
+              ) : (
+                <p className="mt-3 text-sm text-zinc-400 dark:text-zinc-500">{emailCooldownText()}</p>
+              )
             ) : (
               <form onSubmit={handleSaveEmail} className="mt-4 space-y-3">
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={emailDisabled}
