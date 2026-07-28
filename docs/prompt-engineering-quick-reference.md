@@ -330,7 +330,23 @@ Common mistake: Using useEffect to set initial theme — causes flash of wrong t
 
 **Common mistake:** Changing the adapter's parameter format to match the new DB's native format — forces you to update ALL callers at once.
 
+### Pattern: Multi-Tenant Column Audit
+
+**When:** Adding a tenant-scoping column (like `negocio_slug`) to one table and need to verify it wasn't accidentally added to queries on OTHER tables
+
+**Wrong approach:** Search for the column name and manually check each occurrence
+- Easy to miss queries in nested files
+- Tedious and error-prone
+
+**Correct approach:** Use an explore agent with explicit list of tables that DO and DON'T have the column:
 ```
+Find ALL SQL queries that reference `negocio_slug` on tables that DON'T have that column.
+Tables WITH the column: facturas
+Tables WITHOUT: lineas_factura, adjuntos, etiquetas, duplicados_potenciales, etc.
+Return exact file paths, line numbers, and full SQL query for each broken reference.
+```
+
+**Key insight:** When adding a multi-tenant column to one table, do a full codebase grep for that column name to find all queries that might have incorrectly adopted it on OTHER tables. A single audit pass prevents dozens of broken endpoints.
 
 ---
 
@@ -349,4 +365,4 @@ Common mistake: Using useEffect to set initial theme — causes flash of wrong t
 
 ---
 
-*Last updated: 2026-07-25*
+*Last updated: 2026-07-27*

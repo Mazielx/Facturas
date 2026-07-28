@@ -342,6 +342,38 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
+### Entry 011: Fixing Broken Multi-Tenant Queries and Email Extraction Dedup
+
+**Date:** 2026-07-27
+**Topic:** Systematic audit of SQL queries referencing non-existent columns, and fixing email extraction duplication
+**Time spent:** ~45 minutes
+
+**What I learned:**
+- When adding `negocio_slug` column to the `facturas` table for multi-tenancy, it's easy to accidentally add `AND negocio_slug = ?` to queries on OTHER tables (like `lineas_factura`, `adjuntos`, `etiquetas`, `duplicados_potenciales`) that don't have that column — causes silent SQL errors → 500s
+- The `listEmailsWithAttachments` function in gmail.ts already filters to only PDF/XML attachments via `isPdfOrXmlAttachment`, so by the time the extract route sees them, an email with PDF + XML + image appears to have only 2 attachments — misleading the dedup logic
+- Solved by adding `totalAttachmentCount` field to `EmailMessage` type that counts ALL attachments (including non-PDF/XML) before filtering, then checking `totalAttachmentCount === 2` in the extract route
+- Only process the XML attachment (skip PDFs entirely when XML exists) — XML contains structured CFDI data, PDF is redundant
+
+**The process:**
+1. Used explore agent to audit ALL SQL queries in `src/app/api/` for `negocio_slug` references on tables that don't have the column — found 12 broken references across 4 files
+2. Fixed `src/app/api/facturas/[id]/route.ts` — removed `negocio_slug` from `lineas_factura` and `adjuntos` queries
+3. Fixed `src/app/api/etiquetas/route.ts` — removed `negocio_slug` from SELECT, INSERT, DELETE (etiquetas is a shared table, not per-tenant)
+4. Fixed `src/app/api/facturas/[id]/duplicados/route.ts` — removed `dp.negocio_slug` (duplicados_potenciales has no slug column)
+5. Fixed `src/app/api/facturas/[id]/etiquetas/route.ts` — removed `negocio_slug` from `factura_etiqueta` and `etiquetas` queries
+6. Fixed `src/app/api/facturas/[id]/adjunto/route.ts` — removed `negocio_slug` from `adjuntos` query
+7. Added `totalAttachmentCount` to `EmailMessage` type and `listEmailsWithAttachments` function
+8. Updated extract route to filter emails with `totalAttachmentCount === 2` and exactly 1 PDF + 1 XML
+
+**Mistakes I made:**
+- Initially added `otherAttachments` filter but it was redundant since `listEmailsWithAttachments` already filters to PDF/XML only — the real issue was needing the total count of ALL attachments
+
+**Key insight:**
+> "When adding a multi-tenant column to one table, do a full codebase grep for that column name to find all queries that might have incorrectly adopted it on OTHER tables. A single audit pass prevents 12 broken endpoints."
+
+**Confidence level:** Can systematically audit and fix multi-tenant query issues across a codebase
+
+---
+
 ## Project Portfolio
 
 ### Project 1: Gobernanza (Learning Management System)
@@ -444,4 +476,4 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
-*Last updated: 2026-07-25*
+*Last updated: 2026-07-27*

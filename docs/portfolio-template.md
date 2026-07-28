@@ -197,6 +197,7 @@ Verify what's actually failing and fix it.
 | 2026-07-22 | Added multi-email account system | Premium feature architecture |
 | 2026-07-24 | Implemented dark/light/system theme toggle | SSR-safe cross-cutting concern |
 | 2026-07-25 | Migrated DB layer from better-sqlite3 to Turso/libsql | Zero-cost cloud DB, async architecture |
+| 2026-07-27 | Fixed 12 broken multi-tenant queries + extraction dedup | Systematic audit prevented 500 errors across 4 API routes |
 
 #### Mistakes That Taught Me
 
@@ -211,6 +212,12 @@ Verify what's actually failing and fix it.
    - Why it happened: Assumed filesystem was persistent like local development
    - What I learned: Cloud platforms often have ephemeral storage — check before choosing DB
    - How I avoid it now: Always consider storage persistence in deployment architecture
+
+3. **Broken multi-tenant queries on non-tenant tables**
+   - What happened: Added `negocio_slug` column to `facturas` table, then queries on `lineas_factura`, `adjuntos`, `etiquetas` etc. started 500-ing because they also got `AND negocio_slug = ?` added
+   - Why it happened: Assumed all tables should have the tenant column — didn't audit which tables actually have it
+   - What I learned: When adding a multi-tenant column, grep the entire codebase for that column name and verify each query targets a table that actually has it
+   - How I avoid it now: Always list which tables DO and DON'T have a column before adding it to queries
 
 3. **Confidence thresholds too strict**
    - What happened: Most invoices labeled "low confidence" — bad for business UX
