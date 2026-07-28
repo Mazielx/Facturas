@@ -13,6 +13,7 @@ export interface EmailMessage {
   date: string
   snippet: string
   attachments: AttachmentInfo[]
+  totalAttachmentCount: number
 }
 
 export interface EmailListResponse {

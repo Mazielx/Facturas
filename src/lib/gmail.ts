@@ -108,11 +108,13 @@ export async function listEmailsWithAttachments(
     const date = headers.find((h) => h.name === "Date")?.value || ""
 
     const attachments: AttachmentInfo[] = []
+    let totalAttachmentCount = 0
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const collectAttachments = (parts: any[] | undefined) => {
       if (!parts) return
       for (const part of parts) {
         if (part.filename && part.body?.attachmentId) {
+          totalAttachmentCount++
           if (isPdfOrXmlAttachment(part.mimeType, part.filename)) {
             attachments.push({
               filename: part.filename,
@@ -144,6 +146,7 @@ export async function listEmailsWithAttachments(
         date,
         snippet: detail.data.snippet || "",
         attachments,
+        totalAttachmentCount,
       })
     }
   }

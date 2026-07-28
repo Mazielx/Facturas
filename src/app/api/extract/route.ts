@@ -50,14 +50,20 @@ export async function POST() {
     const gmail = google.gmail({ version: "v1", auth })
 
     for (const email of emailList.emails) {
-      const sortedAttachments = [...email.attachments].sort((a, b) => {
-        const aIsXml = a.filename.toLowerCase().endsWith(".xml") || a.mimeType?.includes("xml")
-        const bIsXml = b.filename.toLowerCase().endsWith(".xml") || b.mimeType?.includes("xml")
-        if (aIsXml && !bIsXml) return -1
-        if (!aIsXml && bIsXml) return 1
-        return 0
-      })
-      for (const attachment of sortedAttachments) {
+      const xmlAttachments = email.attachments.filter(
+        (a) => a.filename.toLowerCase().endsWith(".xml") || a.mimeType?.includes("xml")
+      )
+      const pdfAttachments = email.attachments.filter(
+        (a) => a.filename.toLowerCase().endsWith(".pdf") || a.mimeType?.includes("pdf")
+      )
+
+      if (xmlAttachments.length === 0 || pdfAttachments.length === 0 || email.totalAttachmentCount !== 2) {
+        console.log(`SKIP email ${email.id}: ${email.totalAttachmentCount} adjuntos totales (xml=${xmlAttachments.length}, pdf=${pdfAttachments.length})`)
+        continue
+      }
+
+      const attachment = xmlAttachments[0]
+      {
         try {
           const response = await gmail.users.messages.attachments.get({
             userId: "me",
