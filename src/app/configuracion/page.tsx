@@ -4,10 +4,12 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { deleteClientCookie } from "@/lib/cookie-utils"
 import ThemeToggle from "../components/theme-toggle"
+import { useTheme } from "@/lib/theme-context"
 
 export default function ConfiguracionPage() {
   const [gmailConnected, setGmailConnected] = useState(false)
   const [checking, setChecking] = useState(true)
+  const { theme, setTheme } = useTheme()
 
   useEffect(() => {
     fetch("/api/facturas?limit=1")
@@ -76,6 +78,97 @@ export default function ConfiguracionPage() {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl">
+          <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800">
+            <h2 className="font-medium text-zinc-900 dark:text-zinc-100">Tema</h2>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+              Selecciona la apariencia de la aplicacion
+            </p>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => setTheme("dark")}
+                className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                  theme === "dark"
+                    ? "border-zinc-900 dark:border-zinc-100 bg-zinc-900 dark:bg-zinc-100"
+                    : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                }`}
+              >
+                <div className="w-full h-20 rounded-lg bg-zinc-800 dark:bg-zinc-200 mb-3 flex items-center justify-center">
+                  <div className="space-y-1.5 w-3/4">
+                    <div className="h-2 rounded bg-zinc-600 dark:bg-zinc-400 w-full" />
+                    <div className="h-2 rounded bg-zinc-700 dark:bg-zinc-300 w-2/3" />
+                    <div className="h-2 rounded bg-zinc-700 dark:bg-zinc-300 w-1/2" />
+                  </div>
+                </div>
+                <p className={`text-sm font-medium ${
+                  theme === "dark"
+                    ? "text-white dark:text-zinc-900"
+                    : "text-zinc-900 dark:text-zinc-100"
+                }`}>
+                  Tema oscuro
+                </p>
+                <p className={`text-xs mt-0.5 ${
+                  theme === "dark"
+                    ? "text-zinc-400 dark:text-zinc-500"
+                    : "text-zinc-500 dark:text-zinc-400"
+                }`}>
+                  Fondo oscuro, ideal para baja luz
+                </p>
+                {theme === "dark" && (
+                  <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center">
+                    <svg className="w-3 h-3 text-zinc-900 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+              </button>
+
+              <button
+                onClick={() => setTheme("light")}
+                className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                  theme === "light"
+                    ? "border-zinc-900 dark:border-zinc-100 bg-zinc-900 dark:bg-zinc-100"
+                    : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+                }`}
+              >
+                <div className="w-full h-20 rounded-lg bg-white border border-zinc-200 mb-3 flex items-center justify-center">
+                  <div className="space-y-1.5 w-3/4">
+                    <div className="h-2 rounded bg-zinc-300 w-full" />
+                    <div className="h-2 rounded bg-zinc-200 w-2/3" />
+                    <div className="h-2 rounded bg-zinc-200 w-1/2" />
+                  </div>
+                </div>
+                <p className={`text-sm font-medium ${
+                  theme === "light"
+                    ? "text-white dark:text-zinc-900"
+                    : "text-zinc-900 dark:text-zinc-100"
+                }`}>
+                  Tema claro
+                </p>
+                <p className={`text-xs mt-0.5 ${
+                  theme === "light"
+                    ? "text-zinc-400 dark:text-zinc-500"
+                    : "text-zinc-500 dark:text-zinc-400"
+                }`}>
+                  Fondo blanco, limpio y brillante
+                </p>
+                {theme === "light" && (
+                  <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center">
+                    <svg className="w-3 h-3 text-zinc-900 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-3 text-center">
+              Tu preferencia se guarda automaticamente
+            </p>
           </div>
         </div>
 
