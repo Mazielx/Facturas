@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const publicPaths = ["/login"]
-const publicApiPrefixes = [
+export const PUBLIC_PATHS = ["/login", "/planes", "/pricing", "/"]
+export const PUBLIC_API_PREFIXES = [
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/logout",
   "/api/auth/callback",
   "/api/auth/request",
+  "/api/webhooks/stripe",
 ]
+
+export function isPublicPath(path: string): boolean {
+  return PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"))
+}
+
+export function isPublicApiPath(path: string): boolean {
+  return PUBLIC_API_PREFIXES.some((p) => path.startsWith(p))
+}
 
 export default function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname
@@ -16,11 +25,7 @@ export default function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
-  if (publicPaths.some((p) => path === p || path.startsWith(p + "/"))) {
-    return NextResponse.next()
-  }
-
-  if (publicApiPrefixes.some((p) => path.startsWith(p))) {
+  if (isPublicPath(path) || isPublicApiPath(path)) {
     return NextResponse.next()
   }
 

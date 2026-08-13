@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { getOAuth2ClientWithTokens, listEmailsWithAttachments, getAuthFromCuentaCorreo } from "@/lib/gmail"
 import { getCuentasCorreo, updateCuentaCorreoTokens } from "@/db"
 import { requireActiveTenant } from "@/lib/tenant"
+import { isAccesoCompleto } from "@/lib/paywall"
 import type { Credentials } from "google-auth-library"
 import type { EmailListResponse } from "@/lib/types"
 
@@ -11,6 +12,12 @@ export async function GET() {
   try {
     const tenant = await requireActiveTenant()
     negocioId = tenant.negocio.id
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json(
+        { emails: [], error: "Se requiere un plan activo" },
+        { status: 402 }
+      )
+    }
   } catch {
     // no business selected
   }

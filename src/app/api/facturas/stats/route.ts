@@ -3,11 +3,15 @@ import { requireActiveTenant } from "@/lib/tenant"
 import { convertCurrency } from "@/lib/currency"
 import { dbGet, dbAll } from "@/db/client"
 import { ensureSchema } from "@/db"
+import { isAccesoCompleto } from "@/lib/paywall"
 
 export async function GET() {
   try {
     const tenant = await requireActiveTenant()
     await ensureSchema()
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json({ error: "Se requiere un plan activo para ver las estadisticas" }, { status: 402 })
+    }
     const monedaDefault = tenant.negocio?.moneda_default || "MXN"
     const slug = tenant.slug
 

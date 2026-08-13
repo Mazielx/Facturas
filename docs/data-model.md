@@ -21,6 +21,10 @@ Represents a business tenant in the system. Each negocio has its own isolated da
 - `slug`: URL-safe identifier derived from nombre (unique, auto-generated)
 - `email`: Business email (optional, max changes once every 6 months)
 - `moneda_default`: Default currency code (default: "MXN")
+- `plan`: Subscription plan id ("individual-mensual", "empresa-mensual", "individual-anual", "empresa-anual"; legacy values "basico" and "multi correo" still supported)
+- `plan_pagado_hasta`: Date paid until (ISO date string, nullable; NULL or past date means no active subscription)
+- `stripe_customer_id`: Stripe customer ID (nullable, set on first checkout)
+- `stripe_subscription_id`: Stripe subscription ID (nullable; used by the webhook to match renewals)
 - `nombre_changed_at`: Timestamp of last nombre change (nullable)
 - `email_changed_at`: Timestamp of last email change (nullable)
 - `created_at`: Creation timestamp
@@ -323,6 +327,10 @@ erDiagram
         String slug UK
         String email
         String moneda_default
+        String plan
+        String plan_pagado_hasta
+        String stripe_customer_id
+        String stripe_subscription_id
         DateTime created_at
         DateTime updated_at
     }
@@ -454,6 +462,11 @@ erDiagram
 5. **Currency Conversion**: All monetary values can be converted to the negocio's default currency for unified reporting.
 
 6. **FTS5 Search**: Full-text search indexed on key invoice fields for fast text queries within each tenant.
+
+7. **Paywall Policy**: Access to features is decided per-request by `isAccesoCompleto({ email, role, planPagadoHasta })` in `src/lib/paywall.ts` — granted when `role === "admin"`, the canonicalized email matches `ADMIN_EMAIL` (gmail dots stripped), or `plan_pagado_hasta` is in the future. API-key routes (`/api/v1/*`) have no user session, so they gate with `isSuscripcionActiva(negocio.plan_pagado_hasta)` only. HTTP 402 signals a blocked feature to the client (shows the PlanModal). `planActivo` is a computed boolean exposed on `/api/negocios*` and `/api/cuentas-correo` — it is never stored.
+
+8. **Stripe Account Linking**: `negocios.stripe_customer_id` / `stripe_subscription_id` are set by the webhook on `checkout.session.completed`; renewals arrive as `invoice.paid` (metadata snapshot at `invoice.parent.subscription_details.metadata`) and only extend `plan_pagado_hasta`. The webhook resolves the owning business via `findNegocioForInvoice` with three fallbacks: subscription id → metadata `negocioId` → `getNegocioByStripeCustomerId`. On `invoice.payment_failed` it emails `notifyPaymentFailed`; on `customer.subscription.deleted` it nulls `plan_pagado_hasta` + `stripe_subscription_id` and emails `notifySubscriptionCanceled` (soft-fail when SMTP unset).
+9. **Tenant creation & limits**: `POST /api/negocios` is allowed for any authenticated user (not just admin) and assigns ownership via `updateUsuario(user.id, { negocio_id })`; `maxCuentasCorreo(user, plan)` in `src/lib/paywall.ts` caps email accounts per plan but grants admin/owner the `empresa-mensual` limit (4) regardless of plan.
 
 ## Notes
 

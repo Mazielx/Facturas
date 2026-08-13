@@ -374,6 +374,386 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
+### Entry 012: Value-Based Pricing Plans for a SaaS Feature
+
+**Date:** 2026-08-04
+**Topic:** Researching manual-work cost to anchor SaaS pricing, and implementing a plan registry + public pricing page
+**Time spent:** ~1 hour
+
+**What I learned:**
+- Manual invoice processing benchmarks: 10-15 min per invoice (Ardent Partners ~12.5 min avg), full cost 2-3x labor once errors/filing/conciliation are included (APQC, IOFM)
+- Mexican labor anchor: auxiliar contable ~$10-14k MXN/month → ~$100-120/hr loaded (prestaciones/IMSS ~30%); so manual processing costs ~$50-70 MXN per invoice and $1.1k-2.3k/month in labor for 50-100 invoices
+- Price at 10-20% of the value saved: Individual $199/mes ($1,990 anual = 2 meses gratis), Empresa $499/mes ($4,990 anual) — competitive vs despachos ($2.5-5k/mes) and automated platforms ($500-1.2k/mes)
+- Single source of truth for plan data: a pure `src/lib/plans.ts` registry (no server-only imports) is importable from both server (email-validation) and client (pages) — avoids duplicating max-email-account logic
+- Legacy plan values ('basico', 'multi correo') must map to new ids ('individual-mensual', 'empresa-mensual') for backwards compatibility
+- New public page needs adding to the proxy `publicPaths` array, otherwise middleware redirects to /login
+
+**The process:**
+1. Researched manual processing cost (time/factura + MX labor) and competitor pricing
+2. Wrote failing tests first (TDD): plan count, email-account limits per tier, 2-months-free annual math, legacy mapping, price formatting
+3. Created `src/lib/plans.ts` registry + helpers; delegated `getMaxEmailCuentas` from email-validation.ts
+4. Built public `/planes` pricing page with monthly/annual toggle, manual-vs-app comparison tables, and CTA to /login
+5. Updated empresa page plan badge + replaced the "Proximamente" promo box with price + link
+6. Verified with eslint/tsc/vitest/build gates
+
+**Mistakes I made:**
+- Named annual plans "Empresa Anual" but `getPlanNombre` should return the tier base ("Empresa") for badges — fixed by deriving name from `tipo` instead of the display name
+- Initially left a redundant ternary in `getPlanNombre` — simplified after the failing test
+
+**Key insight:**
+> "Anchor SaaS pricing to the manual alternative, not to cost of goods. Charge a fraction (10-20%) of what the customer saves; put plan data in one pure module importable from both server and client."
+
+**Confidence level:** Can research a market anchor and ship a plan registry + public pricing page end to end
+
+---
+
+### Entry 013: Paywall Gate with a Modal for Unpaid Subscriptions
+
+**Date:** 2026-08-05
+**Topic:** Enforcing the subscription on the actions that create real value (extract, connect accounts, export) using a reusable plan modal + server-side 402 gates
+**Time spent:** ~1 hour
+
+**What I learned:**
+- Never gate only on the client: the modal is UX, the real gate is HTTP 402 from the API routes (`/api/extract`, `/api/cuentas-correo` POST), so a crafted request can't bypass the paywall
+- Client-side pre-check (before the fetch) avoids a wasted request, but the 402 response handler still opens the same modal as defense in depth
+- Adding a nullable `plan_pagado_hasta` column is the minimal "paid until" model; no payment gateway yet, so a script (`scripts/marcar-plan.ts`) simulates the webhook that will later set it
+- SQLite migration: `CREATE TABLE IF NOT EXISTS` won't add columns to an existing table — a guarded `ALTER TABLE ... ADD COLUMN` with a `PRAGMA table_info` existence check is required (idempotent, safe to run every boot)
+- A pure date helper (`isSuscripcionActiva`) belongs next to the plan registry (`plans.ts`) so server routes, client components, and tests share one truth about "active"
+
+**The process:**
+1. Added `plan_pagado_hasta` to schema (CREATE + guarded migration) and to the `Negocio` type / `updateNegocio`
+2. Wrote `isSuscripcionActiva` + failing tests first (TDD)
+3. Added server gates returning 402; wired client pre-checks + 402 handlers to open a shared `PlanModal`
+4. Reused the modal across dashboard (extract), empresa (connect account) and facturas (export)
+5. Ran eslint/tsc/vitest gates (no new errors; 44/44 tests pass)
+
+**Mistakes I made:**
+- `useState` typed `boolean | null` for "subscription status not loaded yet" — exporting must not block while the status fetch is in flight (null = allow), only block on explicit `false`
+
+**Key insight:**
+> "A paywall is two layers: a reusable modal for the user and a 402 for the server. Gate only the actions that cost money to run."
+
+**Confidence level:** Can implement a paywall gate end to end (schema migration + shared modal + server 402 + tests)
+
+---
+
+### Entry 014: Stripe Checkout Integration with Webhook
+
+**Date:** 2026-08-05
+**Topic:** Wiring the paywall to real payments: Stripe Checkout subscription sessions + a webhook that grants/extends `plan_pagado_hasta`
+**Time spent:** ~1 hour
+
+**What I learned:**
+- Test mode first: `sk_test_` keys and the `4242 4242 4242 4242` test card make the whole flow testable without money or full business verification
+- Stripe Checkout with `mode: "subscription"` + `price_data` avoids managing Price objects: currency MXN, `unit_amount = precio*100`, `recurring.interval = month|year`
+- Carry the plan context on the SUBSCRIPTION metadata (`negocioId`, `planId`) — the checkout session completes once, but `invoice.paid` fires on every renewal, and `invoice.parent.subscription_details.metadata` is an immutable snapshot of that subscription metadata
+- The webhook must be verifiable without a session: add `/api/webhooks/stripe` to the proxy `publicApiPrefixes`, then rely on `stripe.webhooks.constructEvent` + `STRIPE_WEBHOOK_SECRET` for security
+- stripe-node v22.4.0 type shape surprised me: `Invoice.subscription_details` moved to `Invoice.parent.subscription_details`, so TypeScript caught my first guess — always check the installed package's types, not the docs
+- Client button pattern: shared `SubscribeButton` POSTs `/api/checkout`, on 401 redirects to `/login` (works on public pages), on 200 redirects to `session.url`
+
+**The process:**
+1. `npm install stripe`; added columns `stripe_customer_id`/`stripe_subscription_id` + guarded migrations
+2. Pure `buildStripeLineItem(plan)` helper (tested) maps plan registry → Stripe line item
+3. `POST /api/checkout` creates the session; `POST /api/webhooks/stripe` handles `checkout.session.completed` (store ids) and `invoice.paid` (grant/extend paid-until)
+4. Graded gates: tsc/eslint/tests (49/49) + build + deploy; verified 401 on checkout and 400 on unsigned webhook
+5. Left to the user (needs their Stripe account): test secret key + webhook signing secret
+
+**Mistakes I made:**
+- Used `invoice.subscription` / `invoice.subscription_details` from memory; the installed Stripe types moved these under `invoice.parent.*` — fixed after tsc errors
+
+**Key insight:**
+> "Subscription metadata is the contract between Checkout and your webhook — put the plan id there and read it from invoice.paid for every renewal."
+
+**Confidence level:** Can integrate Stripe Checkout + webhook grants end to end
+
+---
+
+### Entry 015: Full Paywall (402 Gating) with Admin Bypass
+
+**Date:** 2026-08-06
+**Topic:** Blocking every feature until a plan is active, while exempting the app owner's admin account
+**Time spent:** ~1.5 hours
+
+**What I learned:**
+- A paywall is a *cross-cutting concern*: one helper (`isAccesoCompleto`) reused by every protected route beats scattered `if` checks — it makes the block list reviewable at a glance
+- The helper accepts a single object `{ email, role, planPagadoHasta }` so each route passes what it has and the policy stays in one file (`src/lib/paywall.ts`)
+- Admin bypass is a security decision: grant by **role** (`role === "admin"`) OR by **email** (the app owner) — because an admin user might have `role: "negocio"` in DB while still owning the app
+- Gmail dots are semantically irrelevant: canonicalize before comparing admin email (`ian.maziel.romo@gmail.com` === `ianmazielromo@gmail.com`), otherwise the bypass silently breaks for the app owner
+- `402 Payment Required` is the right HTTP code for paywalled features — it reads clearly in the client and lets the UI react with `if (res.status === 402) setShowPlanModal(true)`
+- API-key routes (`/api/v1/*`) cannot use the email/role bypass (no user session) — gate them with `isSuscripcionActiva(negocio.plan_pagado_hasta)` instead; the admin exemption is inherently per-user
+- Separate "have access" (blocking) from "plan limits" (how many emails you may connect): the paywall unlocks access; `getMaxEmailCuentas` still caps empresa=4 vs individual=1
+- The test checkout session carried `negocioId: "2"` (my test business) in metadata — the user paid but *their* business (`mi-empresa`, id 1) stayed locked. Payments unlock the business in the session metadata, not "whoever clicked"
+- Local dev databases hide real state: scripts that forgot to load `.env` silently hit `file:local.db` instead of Turso, so DB "verification" looked wrong until env was sourced
+
+**The process:**
+1. Extracted `isAccesoCompleto`/`esEmailAdmin`/`canonicalEmail` into `src/lib/paywall.ts`
+2. Gated every feature route with 402 (extract, cuentas-correo, facturas, emails, etiquetas, factura detail/revision/duplicados/adjunto, and `/api/v1/*`)
+3. Surfaced `planActivo` on `/api/negocios`, `/api/negocios/[slug]`, `/api/cuentas-correo` so the UI can render a locked banner without guessing
+4. UI: amber "Tu plan no esta activo" banner + PlanModal on 402 across dashboard, facturas, empresa, and invoice detail
+5. Added `__tests__/paywall.test.ts` (58/58 tests pass), tsc clean, lint clean on touched files, build OK
+6. Created the owner admin account `ian.maziel.romo@gmail.com` (role admin) in the real Turso DB
+
+**Mistakes I made:**
+- Assumed the checkout the user paid was tied to their business — it was tied to my `acme-test` fixture (id 2). Lesson: always confirm which tenant id is in the session metadata when debugging "paid but locked"
+- Wrote a one-off admin-creation script with a nonsense `email` reassignment line before simplifying; kept it minimal and removed it after use
+- Initial tsc run flagged a temp inspection script (`Row[]` cast) — delete scratch scripts before running the type check
+
+**Key insight:**
+> "The paywall blocks *actions*, not the tenant — gate by the logged-in user's access, but grant/revoke on the business attached to the Stripe session."
+
+**Confidence level:** Can build a subscription paywall with per-role/per-email exemptions and 402-gated UI
+
+---
+
+### Entry 016: Styled Excel Exports
+
+**Date:** 2026-08-06
+**Topic:** Making XLSX exports readable instead of cramped
+**Time spent:** ~45 min
+
+**What I learned:**
+- SheetJS community (`xlsx@0.18.5`) writes data but NO styles — `json_to_sheet` produces a spreadsheet where every cell is default width, so long names and numbers pile together
+- The drop-in styled fork is `xlsx-js-style` (same API, plus `cell.s = {...}` styles: font, fill, alignment, border). Verify your features actually survive a write→read→XML round trip
+- `!cols: [{wch}]` sets column widths (characters); the reader may not round-trip them, so assert against the raw `xl/worksheets/sheet1.xml` inside the zip, not `XLSX.read`
+- Header style: bold white font + dark fill + center alignment reads instantly as "this is the header"; alternating row fill (`F2F2F2`) keeps long rows visually aligned
+- Money cells: coerce DB values to numbers and set `cell.z = "#,##0.00"` — Excel then right-aligns and formats thousands separators automatically
+- `!autofilter` gives the user sortable/filterable columns for free
+- `!freeze` (freeze header row) is NOT supported in xlsx-js-style 1.2.0 — write ignores it, so don't rely on it
+- Type friction: Next `Response` wants `ArrayBuffer`, not `Buffer<ArrayBufferLike>` (TS strict DOM libs) — return a sliced `ArrayBuffer` from the helper
+- Extract the styling into one pure helper (`src/lib/excel.ts`) used by both the web and `/api/v1` export routes
+
+**The process:**
+1. Verified fork capabilities with a throwaway script before writing production code (write, read back, unzip the XML)
+2. Built `buildFacturasWorkbookBuffer(sheet, columns, rows)` — column widths, styled header, zebra rows, money formats, autofilter
+3. Column spec per route (`{ header, key, width, type }`) so each export keeps its own columns but shares the styling
+4. Tests assert against the actual OOXML XML (what Excel renders), since the JS reader doesn't round-trip styles/widths
+5. Deployed and verified the live download: widths present, header styled, autofilter set
+
+**Mistakes I made:**
+- Tested style persistence via `XLSX.read` and got false negatives — the read-back drops `!cols`, `z`, and font. Fix: assert on the XML inside the zip
+- Expected `rgb="1F4E78"` in styles.xml but xlsx-js-style writes `rgb="FF1F4E78"` (ARGB with alpha prefix)
+- Tried `Buffer` as the helper return type — Next's `Response` body rejects `Buffer<ArrayBufferLike>`; switched to `ArrayBuffer`
+
+**Key insight:**
+> "SheetJS community writes data; a styled export needs a fork or hand-rolled XML. Test what Excel renders (the XML), not what the JS reader reconstructs."
+
+**Confidence level:** Can produce professional-looking styled XLSX exports
+
+---
+
+### Entry 017: User-Chosen Export Filenames
+
+**Date:** 2026-08-06
+**Topic:** Letting users name their downloaded export instead of shipping a fixed `facturas.xlsx`
+**Time spent:** ~30 min
+
+**What I learned:**
+- A fixed `Content-Disposition: attachment; filename="facturas.xlsx"` makes every download collide in the Downloads folder — a filename dialog is a cheap professionalism win
+- `window.location.href = url` can't control the saved name; you must `fetch` the file as a blob, create an object URL, and click an `<a download="custom-name.csv">`
+- The browser prefers the anchor's `download` attribute over the server `Content-Disposition`, so the server name becomes irrelevant once you download client-side
+- Sanitize the user's filename: strip `\/:*?"<>|` and collapse whitespace, fall back to `facturas` if empty (or a user names it `../../evil`)
+- Suggest a dated default (`facturas-2026-08-06`) so files don't collide even if the user doesn't type anything
+- Don't `setState` inside a `useEffect` to reset a modal's input (lint `set-state-in-effect`) — remount the dialog with a `key` tied to its open state and let `useState(defaultName)` pick up the fresh default
+- Same-origin `fetch` sends cookies by default, so the 402-gated export endpoint keeps working
+
+**The process:**
+1. New `ExportFilenameModal` component: input with the `.csv`/`.xlsx` suffix shown, Enter submits, Esc/overlay closes
+2. `handleExport` now opens the dialog instead of navigating; `downloadExport` does the blob fetch + anchor click
+3. Kept the 402 → PlanModal behavior on the export fetch
+4. tsc + 63/63 tests + lint clean (no new warnings) + build + deploy
+
+**Mistakes I made:**
+- First version reset the input via `useEffect` + `setState` — ESLint flagged it (a rule already failing elsewhere in the codebase); fixed by remounting with `key`
+
+**Key insight:**
+> "The server names the file, but the client decides the saved name — fetch-as-blob + `a[download]` puts the filename in the user's hands."
+
+**Confidence level:** Can implement client-side downloads with user-defined filenames
+
+---
+
+### Entry 018: Launch Readiness Pass
+
+**Date:** 2026-08-06
+**Topic:** Three fixes that unblock signing up real customers
+**Time spent:** ~1 hour
+
+**What I learned:**
+- Walk the signup flow as a *brand-new user*, not as admin: the negocio-creation form was visible to everyone but `POST /api/negocios` was admin-only — every new customer hit a 403 dead end. Role-gated UI needs role-gated API, and they must match
+- When a user creates a tenant, assign ownership: `updateUsuario(user.id, { negocio_id: newNegocio.id })` and default the business email to their account email. "Created it" and "belongs to them" are two DB writes, don't forget the second
+- A subscription SaaS lives on the full webhook lifecycle: `invoice.paid` grants, but `invoice.payment_failed` (dunning!) and `customer.subscription.deleted` (cancellation) are where access control and communication actually happen
+- Fall back through subscription id → session metadata → customer id when resolving which business owns a Stripe event; don't rely on one field alone
+- On `customer.subscription.deleted`, null `plan_pagado_hasta` and the subscription id immediately — Stripe fires it either at instant-cancel or after `cancel_at_period_end`, and in both cases access should end
+- Payment-failure emails need SMTP configured to actually reach users, but the code must fail soft (`sendEmail` returns false) so a missing SMTP never breaks the webhook
+- Admin "full access without subscription" should also extend to *limits*, not just the paywall gate: `maxCuentasCorreo()` gives admin/owner the empresa tier (4 accounts) even on a `basico` plan, via one pure helper
+- Before launch: cancel test subscriptions and purge fixture data (stripe test subscriptions can also just disappear — verify with `stripe subscriptions list`)
+
+**The process:**
+1. Reproduced the 403 by reading the route + selector instead of assuming
+2. Made tenant creation owner-assigning; added `getNegocioByStripeCustomerId` fallback
+3. Added `invoice.payment_failed` + `customer.subscription.deleted` handlers with email notifications
+4. Extracted `maxCuentasCorreo` into `paywall.ts` and re-used it in GET/POST
+5. Cleaned Turso (deleted `acme-test` fixture) and verified the signup flow live (register → 201 → negocio listed → duplicate 409)
+
+**Mistakes I made:**
+- First attempt to cancel the test subscription failed — `stripe subscriptions cancel` needs `--confirm` interactively, and the sub was already gone (test data reset)
+
+**Key insight:**
+> "Launch readiness is exercised from the customer's seat: sign up like a stranger would, and you find the 403s the admin never sees."
+
+**Confidence level:** Can run a pre-launch product readiness pass
+
+---
+
+### Entry 019: Public Marketing Pages and Route Restructuring
+
+**Date:** 2026-08-06
+**Topic:** Landing page + public pricing so the SaaS can be advertised
+**Time spent:** ~45 minutes
+
+**What I learned:**
+- Audited the deployed routes before assuming "the app is ready to advertise": `/` and `/pricing` both redirected to `/login` — the product was invisible to anyone without an account. Check the *public* surface of a site before marketing it
+- Next.js 16 renamed middleware to `proxy.ts` (same file location, `export default function proxy`). The app had a hand-rolled `publicPaths` allowlist — I extracted `isPublicPath`/`isPublicApiPath` into exported pure functions so routing rules are unit-testable
+- The auth split for a SaaS is: marketing site at the root `/`, authenticated app under `/dashboard`. Logged-in users hitting `/` get a server-side `redirect("/dashboard")` read from the session cookie; logged-out visitors get the landing
+- `cookies()` is async in Next 16 (`await cookies()`), and calling `redirect()` from a Server Component throws `NEXT_REDIRECT` — it's the clean way to branch server-side
+- Moving a page means fixing relative imports (`./(components|negocio-selector)` → `../(...)`) and auditing every place that pointed at the old URL: `redirectTo` in auth routes, `window.location.href` fallbacks, and `<Link href="/">` "back to dashboard" links across 4 pages
+- When a repo's lint gate is already failing on `main` (15 pre-existing errors), verify your change didn't add new ones by running eslint against a clean worktree of HEAD and diffing the counts, instead of "fixing" unrelated pre-existing debt
+- A price page that already exists publicly (`/planes`) can be given a friendlier marketing alias (`/pricing` → server-component `redirect("/planes")`), and both must be in the proxy allowlist or the alias silently 307s to `/login`
+
+**The process:**
+1. `curl`ed every route to map what was public (found `/planes` was already public, `/pricing` and `/` were not)
+2. Extracted testable path helpers in `proxy.ts`; added `__tests__/proxy.test.ts` first
+3. Moved the dashboard to `/dashboard` (fixed 6 relative imports)
+4. Built the landing at `/` (server component: session cookie → `/dashboard`; else marketing content reusing the zinc/dark design system)
+5. Re-pointed every login/register/callback redirect and "← back" link to `/dashboard`
+6. Verified prod: `/`→200, `/planes`→200, `/pricing`→307→`/planes`, `/dashboard`→307→`/login` (anon), `/dashboard`→200 (auth), `/`→`/dashboard` (auth)
+
+**Mistakes I made:**
+- Almost put `/` into the proxy `publicPaths` with a naive matcher — caught that `startsWith("/" + "/")` never matches and used the exact-equality branch
+- The first deploy test showed `/pricing` 307 to `/login` before I added it to the allowlist (alias page existed but proxy blocked it)
+
+**Key insight:**
+> "A SaaS's public surface is part of the product. If the landing page 307s to login, the ad budget is wasted before a user reads a word."
+
+**Confidence level:** Can restructure routes for public marketing pages and verify auth boundaries
+
+---
+
+### Entry 020: Branding the Product (Name + Domain)
+
+**Date:** 2026-08-06
+**Topic:** Choosing a commercial name and wiring it into the app
+**Time spent:** ~1 hour
+
+**What I learned:**
+- A brand name should work as an everyday phrase, not just describe the product: "En Regla" (as in "todo en regla") was picked over literal names like "Factu" or "Facturo" — and it was chosen by the user because it already lives in daily speech
+- Check domain availability with **RDAP** (registries expose a free JSON API): `curl -L https://rdap.org/domain/name.tld` — HTTP **404 = available**, **200 = registered**. DNS lookup is only a weak heuristic (a registered domain can have no DNS), so RDAP is the real answer
+- Good `.com` names are essentially all taken; the realistic play for a Mexican market is `.mx` (e.g. `enregla.mx`), which is registrable by individuals
+- Centralize the brand in one module (`src/lib/brand.ts` with `APP_NAME`/`APP_TAGLINE`/`APP_DESCRIPTION`) and import it everywhere — otherwise the name leaks into 10 scattered files (metadata, logo, hero, footer, version label, payment emails, even the exported Excel sheet tab)
+- Distinguish the **brand name** from the **feature name**: "En Regla" (brand) vs "facturas" (invoices — route folders, API paths, "Últimas Facturas" labels). Grep for brand usage with start/end-boundary patterns (`>Facturas<`, `"Facturas"`) so you don't accidentally rename feature code
+- When a domain changes, it's not just DNS: Google OAuth redirect URI, Stripe payment links/webhooks, and any absolute `SITE_URL` env values all point at the old host
+
+**The process:**
+1. Shortlisted 15 candidate names across themes (verbs, everyday phrases, accounting words)
+2. Heuristic DNS check, then RDAP verification for the finalists; recorded `cuadre.mx`, `factua.mx`, `remite.mx`, `enregla.mx` as available
+3. User picked **En Regla**; confirmed `enregla.mx` available
+4. Created `src/lib/brand.ts` and applied it to metadata, landing, login selector, config, planes, notifications, and both Excel export routes
+5. Deployed and verified the title tag, logo, and public routes in production
+
+**Mistakes I made:**
+- First used `socket.gethostbyname` to infer availability — unreliable (registered domains without DNS look "free"). RDAP 404 is the trustworthy signal
+- Initially planned to rename dashboard's "Facturas" labels before realizing they were feature labels, not brand text
+
+**Key insight:**
+> "A brand is a sentence people already say, and a domain is real only when the registry says 404."
+
+**Confidence level:** Can select a brand name, verify domain availability, and rebrand an app cleanly
+
+---
+
+### Entry 021: Launching on the Free Vercel Domain + Social Sharing
+
+**Date:** 2026-08-06
+**Topic:** Going live without a paid domain, and making shared links look professional
+**Time spent:** ~40 minutes
+
+**What I learned:**
+- The app can go live with zero cost on Vercel's production domain (`*.vercel.app`). It's a real domain with HTTPS and full public access — the only "cost" is that it isn't branded
+- Custom `vercel.app` aliases are NOT a free branding trick: when an account has deployment protection enabled, every alias except the main production domain sits behind a Vercel SSO login wall (302 → `vercel.com/sso-api`). Verified: `facturas-sigma.vercel.app` → 200, every new alias → 302
+- Adding an alias via `vercel alias set <hostname> <alias>` pins it to whatever deployment the source resolved at that moment — wrong way to do it; aliases should be attached to an explicit deployment URL if you must create them
+- Some free-domain paths can't be fully delegated: eu.org requires an email confirmation click by the real owner, so "just do it for me" hits a hard human step I can't perform. Be explicit about which steps are mine and which are the owner's
+- Open Graph metadata is the difference between an ugly link and a card: `metadataBase` + `openGraph` + `twitter` in Next 16 layout metadata, deployed, produces `og:title`/`og:site_name`/`twitter:card` that Instagram/Facebook/X scrapers read
+
+**The process:**
+1. Confirmed the app already serves publicly at the production domain (no waiting required)
+2. Tried branded aliases → all SSO-walled → removed them, kept the public production domain
+3. Added OG + Twitter card metadata with the brand name and tagline
+4. Built, deployed, and verified the meta tags live
+
+**Mistakes I made:**
+- Created 4 aliases before checking whether they'd actually be public; verified AFTER (SSO 302) and had to remove them. Check the protection behavior first
+
+**Key insight:**
+> "Free launch = the production vercel.app domain. Fancy aliases are SSO-gated, paid domains need a wallet, and eu.org needs a human's inbox — the product doesn't need any of them to go live today."
+
+**Confidence level:** Can take a SaaS live on a free domain with presentable social sharing
+
+---
+
+### Entry 022: Mobile Responsiveness Audit (Tables + Headers)
+
+**Date:** 2026-08-06
+**Topic:** Verifying and fixing "does it look right on a phone?"
+**Time spent:** ~30 minutes
+
+**What I learned:**
+- The fastest way to answer "se ve bien en celular?" without a browser is an audit script: every `<table>` must be inside an `overflow-x-auto` wrapper (checked with `grep -rl "<table"` + counting wrappers per file) — all 6 tables already had it, so tables scroll horizontally instead of breaking the layout
+- The real mobile failure points are headers with multiple controls in one `justify-between` row: dashboard (title + badge + "Extraer de Gmail" + "Ver todas" + theme toggle + avatar), facturas detail (number + estado + Cancelar + confianza + revisión), landing (logo + 2 CTAs + toggle). At 360px those rows overflow
+- The fix pattern is cheap and low-risk: add `flex-wrap gap-2` to the header container + `min-w-0 truncate` on the title + `flex-wrap justify-end` on the action group, so items wrap to a new line instead of overflowing; plus `hidden sm:block` for secondary CTA on tiny screens
+- Distinguish "responsive enough" (single-column grids, hidden nav, scrollable tables) from "responsive gaps" (crowded flex rows) — the former was already fine, the latter needed the wraps
+
+**The process:**
+1. Audited tables via grep → all wrapped, no action needed
+2. Audited headers row by row for control counts at 360px width
+3. Applied the flex-wrap pattern to 4 headers (landing, dashboard, facturas list, facturas detail)
+4. `tsc`, ESLint (only pre-existing warning), 71/71 tests, build, deploy, verified 200 in prod
+
+**Key insight:**
+> "Mobile 'breaks' are usually horizontal overflow in flex rows and tables. Tables need `overflow-x-auto`; crowded headers need `flex-wrap`. Audit with grep for the table case, read the JSX for the header case."
+
+**Confidence level:** Can audit and fix a Next/Tailwind app's mobile layout without a browser, using grep + class reasoning
+
+---
+
+### Entry 023: Back-Navigation "Memory" Across Pages
+
+**Date:** 2026-08-12
+**Topic:** Making the back arrow return to the page the user actually came from, not a hardcoded target
+**Time spent:** ~1.5 hours
+
+**What I learned:**
+- Every back arrow in the app was a hardcoded link ("← Inicio" → `/dashboard`, "← Volver" → `/login`). No matter where the user came from, back dumped them on a fixed page
+- First attempt used query-param memory (`?from=<path>` propagated through links). It worked but the user rejected it: they want the page to *detect* where the user was, not have every link hand-carry a param
+- The right tool is the browser's own history: `router.back()` from `next/navigation` is native dynamic back, including repeated backs (a single "previous path" slot loops when you go back twice)
+- The only missing piece is knowing whether there IS in-app history (direct visit vs. navigated). Solved with a global tracker: a `NavMemory` client component in the root layout watches `usePathname` and sets a `sessionStorage` flag on the first in-app navigation
+- `BackLink` component: click → if the flag is set and `history.length > 1` → `router.back()`; else `router.push(fallback)` (each page's natural home: landing for `/planes`, dashboard for `/facturas`/`/cuenta`/etc.)
+- `usePathname` in the root layout needs a `<Suspense>` boundary per the Next 16 docs so prerendered routes stay prerendered
+- Keep the `?from=` param ONLY where it feeds a post-login redirect (SubscribeButton 401 → `/login?from=<page>`), not for the back link itself
+
+**The process:**
+1. `src/lib/back-nav.ts`: `useNavTracker()` (sets sessionStorage flag after first nav) + `shouldUseHistoryBack()`
+2. `src/app/components/nav-memory.tsx`: null-rendering tracker mounted in layout inside `<Suspense>`
+3. `src/app/components/back-link.tsx`: reusable dynamic back link (history-back with fallback)
+4. Replaced all 9 hardcoded back links (planes, login, facturas, factura detail, cuenta, empresa, configuracion, admin)
+5. Verified `tsc --noEmit`, ESLint (no new errors on touched files), full `next build` pass
+
+**Key insight:**
+> "For 'back' that adapts to where the user was, delegate to the browser history with `router.back()` and only add a fallback for direct visits. Detect 'has in-app history' with a tiny sessionStorage flag set by a layout-level path tracker — don't encode the origin into every link."
+
+**Confidence level:** Can implement origin-aware back navigation across a Next.js app
+
+---
+
 ## Project Portfolio
 
 ### Project 1: Gobernanza (Learning Management System)
@@ -396,6 +776,10 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 - OAuth multi-account flow with DB token persistence
 - Institutional email validation for feature gating
 - Railway deployment: ephemeral storage, CDN caching, SSR rendering
+- Stripe Checkout subscriptions + webhook grants (`invoice.paid` renewals)
+- Full paywall with 402 gating and admin/owner bypass (`src/lib/paywall.ts`)
+- Styled XLSX exports with `xlsx-js-style` (widths, header, zebra rows, money formats)
+- Client-side downloads with user-defined filenames (`fetch` blob + `a[download]`)
 
 **AI usage:**
 - Created documentation suite
@@ -476,4 +860,4 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
-*Last updated: 2026-07-27*
+*Last updated: 2026-08-12*

@@ -5,19 +5,27 @@ import { processAttachment } from "@/lib/extraction"
 import { requireActiveTenant } from "@/lib/tenant"
 import { notifyExtractionErrors } from "@/lib/notifications"
 import { getCuentasCorreo, updateCuentaCorreoTokens } from "@/db"
+import { isAccesoCompleto } from "@/lib/paywall"
 import type { Credentials } from "google-auth-library"
 import { google } from "googleapis"
 
 export async function POST() {
-  let slug: string
+  let tenant: Awaited<ReturnType<typeof requireActiveTenant>>
   try {
-    const tenant = await requireActiveTenant()
-    slug = tenant.slug
+    tenant = await requireActiveTenant()
   } catch {
     return NextResponse.json({ error: "No hay negocio seleccionado" }, { status: 401 })
   }
 
-  const negocioId = (await requireActiveTenant()).negocio.id
+  if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+    return NextResponse.json(
+      { error: "Se requiere un plan activo para extraer facturas" },
+      { status: 402 }
+    )
+  }
+
+  const slug = tenant.slug
+  const negocioId = tenant.negocio.id
   const cuentas = await getCuentasCorreo(negocioId)
   const cookieStore = await cookies()
   const tokensCookie = cookieStore.get("gmail_tokens")

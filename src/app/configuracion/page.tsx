@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { deleteClientCookie } from "@/lib/cookie-utils"
 import ThemeToggle from "../components/theme-toggle"
+import BackLink from "../components/back-link"
+import { APP_NAME } from "@/lib/brand"
 import { useTheme } from "@/lib/theme-context"
 
 export default function ConfiguracionPage() {
@@ -32,9 +33,9 @@ export default function ConfiguracionPage() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link href="/" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+          <BackLink fallback="/dashboard" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
             ← Inicio
-          </Link>
+          </BackLink>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Configuración</h1>
           <div className="ml-auto"><ThemeToggle /></div>
         </div>
@@ -207,7 +208,7 @@ export default function ConfiguracionPage() {
           </div>
           <div className="p-6 space-y-2">
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              <span className="font-medium text-zinc-900 dark:text-zinc-100">Facturas</span> v0.1.0
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">{APP_NAME}</span> v0.1.0
             </p>
             <p className="text-xs text-zinc-400 dark:text-zinc-500">
               Sistema de gestion de facturas con extraccion automatica desde Gmail

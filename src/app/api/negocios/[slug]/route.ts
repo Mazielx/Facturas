@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getNegocioBySlug, deleteNegocio, updateNegocio } from "@/db"
 import { getCurrentUser } from "@/lib/auth"
+import { isAccesoCompleto } from "@/lib/paywall"
 
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const user = await getCurrentUser()
@@ -14,7 +15,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "No autorizado" }, { status: 403 })
   }
 
-  return NextResponse.json(negocio)
+  return NextResponse.json({
+    ...negocio,
+    planActivo: isAccesoCompleto({ email: user.email, role: user.role, planPagadoHasta: negocio.plan_pagado_hasta }),
+  })
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ slug: string }> }) {

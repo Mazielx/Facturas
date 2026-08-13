@@ -17,6 +17,9 @@ export interface Negocio {
   email: string | null
   moneda_default: string
   plan: string
+  plan_pagado_hasta: string | null
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
   nombre_changed_at: string | null
   email_changed_at: string | null
   created_at: string
@@ -26,6 +29,16 @@ export interface Negocio {
 export async function getNegocioBySlug(slug: string): Promise<Negocio | undefined> {
   await ensureSchema()
   return dbGet<Negocio>("SELECT * FROM negocios WHERE slug = ?", { "1": slug })
+}
+
+export async function getNegocioByStripeSubscriptionId(subscriptionId: string): Promise<Negocio | undefined> {
+  await ensureSchema()
+  return dbAll<Negocio>("SELECT * FROM negocios WHERE stripe_subscription_id = ?", { "1": subscriptionId }).then((r) => r[0])
+}
+
+export async function getNegocioByStripeCustomerId(customerId: string): Promise<Negocio | undefined> {
+  await ensureSchema()
+  return dbAll<Negocio>("SELECT * FROM negocios WHERE stripe_customer_id = ?", { "1": customerId }).then((r) => r[0])
 }
 
 export async function getNegocioById(id: number): Promise<Negocio | undefined> {
@@ -47,7 +60,7 @@ export async function createNegocio(nombre: string, slug: string, email?: string
   return (await getNegocioBySlug(slug))!
 }
 
-export async function updateNegocio(id: number, data: { nombre?: string; email?: string; moneda_default?: string }): Promise<{ error?: string }> {
+export async function updateNegocio(id: number, data: { nombre?: string; email?: string; moneda_default?: string; plan?: string; plan_pagado_hasta?: string | null; stripe_customer_id?: string | null; stripe_subscription_id?: string | null }): Promise<{ error?: string }> {
   await ensureSchema()
   const fields: string[] = []
   const args: Record<string, unknown> = {}
@@ -88,6 +101,26 @@ export async function updateNegocio(id: number, data: { nombre?: string; email?:
   if (data.moneda_default !== undefined) {
     fields.push(`moneda_default = ?`)
     args[String(idx++)] = data.moneda_default
+  }
+
+  if (data.plan !== undefined && data.plan !== current.plan) {
+    fields.push(`plan = ?`)
+    args[String(idx++)] = data.plan
+  }
+
+  if (data.plan_pagado_hasta !== undefined && data.plan_pagado_hasta !== current.plan_pagado_hasta) {
+    fields.push(`plan_pagado_hasta = ?`)
+    args[String(idx++)] = data.plan_pagado_hasta
+  }
+
+  if (data.stripe_customer_id !== undefined && data.stripe_customer_id !== current.stripe_customer_id) {
+    fields.push(`stripe_customer_id = ?`)
+    args[String(idx++)] = data.stripe_customer_id
+  }
+
+  if (data.stripe_subscription_id !== undefined && data.stripe_subscription_id !== current.stripe_subscription_id) {
+    fields.push(`stripe_subscription_id = ?`)
+    args[String(idx++)] = data.stripe_subscription_id
   }
 
   if (fields.length === 0) return {}

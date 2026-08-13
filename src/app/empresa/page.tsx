@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import ThemeToggle from "../components/theme-toggle"
+import PlanModal from "../components/plan-modal"
+import BackLink from "../components/back-link"
+import { getPlanInfo, getPlanNombre, getPlanById, formatPrecio } from "@/lib/plans"
 
 interface NegocioInfo {
   id: number
@@ -11,6 +14,8 @@ interface NegocioInfo {
   email: string | null
   moneda_default: string
   plan: string
+  plan_pagado_hasta: string | null
+  planActivo: boolean
   nombre_changed_at: string | null
   email_changed_at: string | null
 }
@@ -47,6 +52,7 @@ export default function EmpresaPage() {
   const [showAddCuenta, setShowAddCuenta] = useState(false)
   const [newCuentaEmail, setNewCuentaEmail] = useState("")
   const [addingCuenta, setAddingCuenta] = useState(false)
+  const [showPlanModal, setShowPlanModal] = useState(false)
 
   const hasNombreChanges = showNombre && nombre !== initialNombre
   const hasEmailChanges = showEmail && email !== (initialEmail || "")
@@ -97,6 +103,8 @@ export default function EmpresaPage() {
         const data = await res.json()
         setCuentas(data.cuentas || [])
         setMaxCuentas(data.maxCuentas || 1)
+      } else if (res.status === 402) {
+        setShowPlanModal(true)
       }
     } catch {}
   }, [])
@@ -128,6 +136,10 @@ export default function EmpresaPage() {
     if (params.get("msg") === "cuenta_conectada") {
       setMessage("Cuenta de correo conectada correctamente")
       fetchCuentas()
+      window.history.replaceState({}, "", "/empresa")
+    }
+    if (params.get("msg") === "suscripcion_activa") {
+      setMessage("Suscripción activada correctamente. Ya puedes usar el plan.")
       window.history.replaceState({}, "", "/empresa")
     }
   }, [fetchCuentas])
@@ -221,6 +233,10 @@ export default function EmpresaPage() {
 
   const handleAddCuenta = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!negocio || !negocio.planActivo) {
+      setShowPlanModal(true)
+      return
+    }
     setAddingCuenta(true)
     setError(null)
     setMessage(null)
@@ -272,9 +288,9 @@ export default function EmpresaPage() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link href="/" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+          <BackLink fallback="/dashboard" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
             ← Inicio
-          </Link>
+          </BackLink>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Mi empresa</h1>
           <div className="ml-auto"><ThemeToggle /></div>
         </div>
@@ -289,6 +305,18 @@ export default function EmpresaPage() {
         {error && (
           <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm border border-red-200 dark:border-red-800">
             {error}
+          </div>
+        )}
+
+        {negocio && !negocio.planActivo && (
+          <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 text-sm border border-amber-200 dark:border-amber-800 flex items-center justify-between gap-4">
+            <p>Tu plan no esta activo. Las funciones estan bloqueadas hasta que confirmes el pago de uno de los planes.</p>
+            <button
+              onClick={() => setShowPlanModal(true)}
+              className="shrink-0 px-4 py-1.5 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-medium transition-colors"
+            >
+              Activar plan
+            </button>
           </div>
         )}
 
@@ -410,11 +438,11 @@ export default function EmpresaPage() {
                 </p>
               </div>
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                negocio?.plan === "multi correo"
+                negocio?.plan && getPlanInfo(negocio.plan).tipo === "empresa"
                   ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
                   : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
               }`}>
-                {negocio?.plan === "multi correo" ? "Plan Multi Correo" : "Plan Basico"}
+                {negocio?.plan ? `Plan ${getPlanNombre(negocio.plan)}` : "Sin plan"}
               </span>
             </div>
           </div>
@@ -473,20 +501,26 @@ export default function EmpresaPage() {
               </form>
             )}
 
-            {negocio?.plan !== "multi correo" && (
+            {negocio?.plan && getPlanInfo(negocio.plan).tipo !== "empresa" && (
               <div className="mt-4 p-4 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Plan Multi Correo</p>
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Plan Empresa · {formatPrecio(getPlanById("empresa-mensual")!.precio)}/mes</p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                  Conecta hasta 4 cuentas de correo institucionales para extraer facturas de multiples fuentes. Precio mensual por definir.
+                  Conecta hasta 4 cuentas de correo institucionales para extraer facturas de multiples fuentes.
+                  Con descuento anual disponible.
                 </p>
-                <button disabled className="mt-3 px-4 py-2 rounded-lg bg-zinc-300 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 text-sm font-medium cursor-not-allowed">
-                  Proximamente
-                </button>
+                <Link
+                  href="/planes"
+                  className="mt-3 inline-block px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors"
+                >
+                  Ver planes y precios
+                </Link>
               </div>
             )}
           </div>
         </div>
       </main>
+
+      <PlanModal open={showPlanModal} onClose={() => setShowPlanModal(false)} />
     </div>
   )
 }

@@ -50,7 +50,7 @@ export async function GET(request: Request) {
 
     const encoded = encodeURIComponent(JSON.stringify(tokens))
     const origin = new URL(request.url).origin
-    const response = NextResponse.redirect(new URL("/", origin))
+    const response = NextResponse.redirect(new URL("/dashboard", origin))
     response.cookies.set("gmail_tokens", encoded, {
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
@@ -62,6 +62,6 @@ export async function GET(request: Request) {
     return response
   } catch (err) {
     console.error("Auth error:", err)
-    return NextResponse.redirect(new URL("/?error=auth_failed", request.url))
+    return NextResponse.redirect(new URL("/dashboard?error=auth_failed", request.url))
   }
 }

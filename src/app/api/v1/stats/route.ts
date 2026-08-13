@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { validateApiKey } from "@/lib/api-auth"
 import { getNegocioById } from "@/db"
 import { dbGet, dbAll } from "@/db/client"
+import { isSuscripcionActiva } from "@/lib/plans"
 
 async function authApi(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
@@ -22,6 +23,10 @@ export async function GET(req: NextRequest) {
     const negocio = await getNegocioById(apiKey.negocio_id)
     if (!negocio) {
       return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
+    }
+
+    if (!isSuscripcionActiva(negocio.plan_pagado_hasta)) {
+      return NextResponse.json({ error: "Se requiere un plan activo para usar la API" }, { status: 402 })
     }
 
     const totalFacturas = await dbGet<{ count: number }>(

@@ -1,16 +1,28 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
+import Link from "next/link"
 import { setClientCookie } from "@/lib/cookie-utils"
 import ThemeToggle from "../components/theme-toggle"
+import BackLink from "../components/back-link"
+import { useFromParam } from "@/lib/back-nav"
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageContent() {
   const [mode, setMode] = useState<"login" | "register">("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [nombre, setNombre] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const from = useFromParam()
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -47,7 +59,9 @@ export default function LoginPage() {
         setClientCookie("negocio_slug", data.negocioSlug, 365 * 24 * 60 * 60)
       }
 
-      window.location.href = data.redirectTo || "/"
+      const defaultTarget = data.redirectTo || "/dashboard"
+      const target = from && from !== "/" ? from : defaultTarget
+      window.location.href = target
     } catch {
       setError("Error de conexion")
     } finally {
@@ -57,6 +71,14 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-zinc-950">
+      <div className="absolute top-4 left-4">
+        <BackLink
+          fallback="/"
+          className="text-sm text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100 transition-colors"
+        >
+          ← Volver
+        </BackLink>
+      </div>
       <div className="absolute top-4 right-4"><ThemeToggle /></div>
       <div className="w-full max-w-md p-8 bg-white dark:bg-zinc-900 rounded-lg shadow-md">
         <h1 className="text-2xl font-bold text-center text-gray-900 dark:text-zinc-100 mb-6">
@@ -160,6 +182,12 @@ export default function LoginPage() {
               </button>
             </>
           )}
+        </div>
+
+        <div className="mt-6 pt-5 border-t border-gray-200 dark:border-zinc-800 text-center text-sm text-gray-500 dark:text-zinc-500">
+          <Link href="/planes" className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
+            Ver planes y precios
+          </Link>
         </div>
       </div>
     </div>

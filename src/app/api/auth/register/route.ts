@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      redirectTo: "/",
+      redirectTo: "/dashboard",
       sessionId: session.id,
       negocioSlug,
       user: {

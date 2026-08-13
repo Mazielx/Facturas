@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireActiveTenant } from "@/lib/tenant"
 import { dbGet, dbAll, dbRun } from "@/db/client"
 import { ensureSchema } from "@/db"
+import { isAccesoCompleto } from "@/lib/paywall"
 
 export async function GET() {
   try {
     const tenant = await requireActiveTenant()
     await ensureSchema()
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
+    }
     const etiquetas = await dbAll(
       "SELECT * FROM etiquetas ORDER BY nombre"
     )
@@ -24,6 +28,9 @@ export async function POST(req: NextRequest) {
   try {
     const tenant = await requireActiveTenant()
     await ensureSchema()
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
+    }
     const body = await req.json()
     const { nombre, color } = body
 
@@ -62,6 +69,9 @@ export async function DELETE(req: NextRequest) {
   try {
     const tenant = await requireActiveTenant()
     await ensureSchema()
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
+    }
     const { searchParams } = new URL(req.url)
     const id = searchParams.get("id")
 

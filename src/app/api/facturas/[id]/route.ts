@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireActiveTenant } from "@/lib/tenant"
 import { dbGet, dbAll, dbRun } from "@/db/client"
 import { ensureSchema } from "@/db"
+import { isAccesoCompleto } from "@/lib/paywall"
 
 const VALID_ESTADOS = ["pendiente", "pagada", "cancelada"]
 
@@ -13,6 +14,10 @@ export async function GET(
     const { id } = await params
     const tenant = await requireActiveTenant()
     await ensureSchema()
+
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
+    }
 
     const factura = await dbGet(
       "SELECT * FROM facturas WHERE id = ? AND negocio_slug = ?",
@@ -58,6 +63,10 @@ export async function PATCH(
     const tenant = await requireActiveTenant()
     await ensureSchema()
     const body = await request.json()
+
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
+    }
 
     if (body.estado && !VALID_ESTADOS.includes(body.estado)) {
       return NextResponse.json(

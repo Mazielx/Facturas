@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { getCuentaCorreoById, deleteCuentaCorreo, getNegocioById } from "@/db"
+import { isAccesoCompleto } from "@/lib/paywall"
 
 export async function DELETE(
   _request: Request,
@@ -30,6 +31,13 @@ export async function DELETE(
     const negocio = await getNegocioById(user.negocio_id!)
     if (!negocio || cuenta.negocio_id !== negocio.id) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+    }
+
+    if (!isAccesoCompleto({ email: user.email, role: user.role, planPagadoHasta: negocio.plan_pagado_hasta })) {
+      return NextResponse.json(
+        { error: "Se requiere un plan activo para desconectar cuentas" },
+        { status: 402 }
+      )
     }
 
     await deleteCuentaCorreo(cuentaId)

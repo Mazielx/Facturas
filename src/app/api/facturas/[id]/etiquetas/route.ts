@@ -2,14 +2,18 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireActiveTenant } from "@/lib/tenant"
 import { dbGet, dbAll, dbRun } from "@/db/client"
 import { ensureSchema } from "@/db"
+import { isAccesoCompleto } from "@/lib/paywall"
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireActiveTenant()
+    const tenant = await requireActiveTenant()
     await ensureSchema()
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
+    }
     const { id } = await params
     const facturaId = Number(id)
 
@@ -33,8 +37,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireActiveTenant()
+    const tenant = await requireActiveTenant()
     await ensureSchema()
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
+    }
     const { id } = await params
     const facturaId = Number(id)
     const body = await req.json()
@@ -70,8 +77,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireActiveTenant()
+    const tenant = await requireActiveTenant()
     await ensureSchema()
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
+    }
     const { id } = await params
     const facturaId = Number(id)
     const { searchParams } = new URL(req.url)

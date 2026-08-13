@@ -2,7 +2,9 @@ import { NextRequest } from "next/server"
 import { validateApiKey } from "@/lib/api-auth"
 import { getNegocioById } from "@/db"
 import { dbAll } from "@/db/client"
-import * as XLSX from "xlsx"
+import { isSuscripcionActiva } from "@/lib/plans"
+import { buildFacturasWorkbookBuffer, type ExcelColumn } from "@/lib/excel"
+import { APP_NAME } from "@/lib/brand"
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,6 +23,10 @@ export async function GET(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Negocio no encontrado" }), { status: 404, headers: { "Content-Type": "application/json" } })
     }
 
+    if (!isSuscripcionActiva(negocio.plan_pagado_hasta)) {
+      return new Response(JSON.stringify({ error: "Se requiere un plan activo para usar la API" }), { status: 402, headers: { "Content-Type": "application/json" } })
+    }
+
     const { searchParams } = new URL(req.url)
     const format = searchParams.get("format") || "csv"
 
@@ -33,24 +39,21 @@ export async function GET(req: NextRequest) {
     ) as Record<string, unknown>[]
 
     if (format === "xlsx") {
-      const worksheetData = facturas.map((f) => ({
-        ID: f.id,
-        "Numero Factura": f.numero_factura,
-        "Fecha Emision": f.fecha_emision,
-        Emisor: f.emisor_nombre,
-        "NIF Emisor": f.emisor_nif,
-        Receptor: f.receptor_nombre,
-        "Base Imponible": f.base_imponible,
-        "Tipo IVA": f.tipo_iva,
-        "Cuota IVA": f.cuota_iva,
-        Total: f.total,
-        Moneda: f.moneda,
-        Estado: f.estado,
-      }))
-      const worksheet = XLSX.utils.json_to_sheet(worksheetData)
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Facturas")
-      const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" })
+      const columns: ExcelColumn[] = [
+        { header: "ID", key: "id", width: 6 },
+        { header: "Numero Factura", key: "numero_factura", width: 22 },
+        { header: "Fecha Emision", key: "fecha_emision", width: 14 },
+        { header: "Emisor", key: "emisor_nombre", width: 32 },
+        { header: "NIF Emisor", key: "emisor_nif", width: 18 },
+        { header: "Receptor", key: "receptor_nombre", width: 32 },
+        { header: "Base Imponible", key: "base_imponible", width: 15, type: "money" },
+        { header: "Tipo IVA", key: "tipo_iva", width: 10 },
+        { header: "Cuota IVA", key: "cuota_iva", width: 15, type: "money" },
+        { header: "Total", key: "total", width: 15, type: "money" },
+        { header: "Moneda", key: "moneda", width: 8 },
+        { header: "Estado", key: "estado", width: 13 },
+      ]
+      const excelBuffer = buildFacturasWorkbookBuffer(APP_NAME, columns, facturas)
 
       return new Response(excelBuffer, {
         headers: {

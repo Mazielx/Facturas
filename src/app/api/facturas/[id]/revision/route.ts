@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireActiveTenant } from "@/lib/tenant"
 import { dbRun } from "@/db/client"
 import { ensureSchema } from "@/db"
+import { isAccesoCompleto } from "@/lib/paywall"
 
 export async function PUT(
   req: NextRequest,
@@ -10,6 +11,9 @@ export async function PUT(
   try {
     const tenant = await requireActiveTenant()
     await ensureSchema()
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
+    }
     const { id } = await params
     const facturaId = Number(id)
     const body = await req.json()

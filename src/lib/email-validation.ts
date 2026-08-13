@@ -1,3 +1,5 @@
+import { getMaxEmailCuentas as getMaxEmailCuentasFromPlans } from "./plans"
+
 const PERSONAL_DOMAINS = new Set([
   "gmail.com", "googlemail.com",
   "yahoo.com", "yahoo.com.mx", "yahoo.com.ar", "yahoo.com.br", "yahoo.co.uk",
@@ -33,9 +35,5 @@ export function getEmailDomain(email: string): string {
 }
 
 export function getMaxEmailCuentas(plan: string): number {
-  switch (plan) {
-    case "basico": return 1
-    case "multi correo": return 4
-    default: return 1
-  }
+  return getMaxEmailCuentasFromPlans(plan)
 }

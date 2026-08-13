@@ -1,12 +1,20 @@
 import { requireActiveTenant } from "@/lib/tenant"
 import { dbAll } from "@/db/client"
 import { ensureSchema } from "@/db"
-import * as XLSX from "xlsx"
+import { isAccesoCompleto } from "@/lib/paywall"
+import { buildFacturasWorkbookBuffer, type ExcelColumn } from "@/lib/excel"
+import { APP_NAME } from "@/lib/brand"
 
 export async function GET(request: Request) {
   try {
     const tenant = await requireActiveTenant()
     await ensureSchema()
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return new Response(JSON.stringify({ error: "Se requiere un plan activo para exportar" }), {
+        status: 402,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
     const { searchParams } = new URL(request.url)
 
     const search = searchParams.get("search") || ""
@@ -65,33 +73,30 @@ export async function GET(request: Request) {
     const facturas = await dbAll(query, args)
 
     if (format === "xlsx") {
-      const worksheetData = facturas.map((f) => ({
-        ID: f.id,
-        "Numero Factura": f.numero_factura,
-        "Fecha Emision": f.fecha_emision,
-        "Fecha Vencimiento": f.fecha_vencimiento,
-        Emisor: f.emisor_nombre,
-        "NIF Emisor": f.emisor_nif,
-        Receptor: f.receptor_nombre,
-        "NIF Receptor": f.receptor_nif,
-        "Base Imponible": f.base_imponible,
-        "Tipo IVA": f.tipo_iva,
-        "Cuota IVA": f.cuota_iva,
-        Total: f.total,
-        Moneda: f.moneda,
-        Estado: f.estado,
-        "Metodo Pago": f.metodo_pago,
-        Descuento: f.descuento,
-        Retencion: f.retencion,
-        Confianza: f.confianza_nivel,
-        "Requiere Revision": f.requiere_revision ? "Si" : "No",
-      }))
+      const columns: ExcelColumn[] = [
+        { header: "ID", key: "id", width: 6 },
+        { header: "Numero Factura", key: "numero_factura", width: 22 },
+        { header: "Fecha Emision", key: "fecha_emision", width: 14 },
+        { header: "Fecha Vencimiento", key: "fecha_vencimiento", width: 14 },
+        { header: "Emisor", key: "emisor_nombre", width: 32 },
+        { header: "NIF Emisor", key: "emisor_nif", width: 18 },
+        { header: "Receptor", key: "receptor_nombre", width: 32 },
+        { header: "NIF Receptor", key: "receptor_nif", width: 18 },
+        { header: "Base Imponible", key: "base_imponible", width: 15, type: "money" },
+        { header: "Tipo IVA", key: "tipo_iva", width: 10 },
+        { header: "Cuota IVA", key: "cuota_iva", width: 15, type: "money" },
+        { header: "Total", key: "total", width: 15, type: "money" },
+        { header: "Moneda", key: "moneda", width: 8 },
+        { header: "Estado", key: "estado", width: 13 },
+        { header: "Metodo Pago", key: "metodo_pago", width: 16 },
+        { header: "Descuento", key: "descuento", width: 12, type: "money" },
+        { header: "Retencion", key: "retencion", width: 12, type: "money" },
+        { header: "Confianza", key: "confianza_nivel", width: 11 },
+        { header: "Requiere Revision", key: "requiere_revision", width: 16 },
+      ]
+      const rows = facturas.map((f) => ({ ...f, requiere_revision: f.requiere_revision ? "Si" : "No" }))
 
-      const worksheet = XLSX.utils.json_to_sheet(worksheetData)
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Facturas")
-
-      const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" })
+      const excelBuffer = buildFacturasWorkbookBuffer(APP_NAME, columns, rows)
 
       return new Response(excelBuffer, {
         headers: {

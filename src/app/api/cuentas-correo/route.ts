@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { getCuentasCorreo, getNegocioById } from "@/db"
-import { isEmailInstitucional, getMaxEmailCuentas } from "@/lib/email-validation"
+import { isEmailInstitucional } from "@/lib/email-validation"
+import { isAccesoCompleto, maxCuentasCorreo } from "@/lib/paywall"
 
 export async function GET() {
   try {
@@ -15,8 +16,17 @@ export async function GET() {
       return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
     }
 
+    const accesoCompleto = isAccesoCompleto({ email: user.email, role: user.role, planPagadoHasta: negocio.plan_pagado_hasta })
+
+    if (!accesoCompleto) {
+      return NextResponse.json(
+        { error: "Se requiere un plan activo para ver las cuentas de correo" },
+        { status: 402 }
+      )
+    }
+
     const cuentas = await getCuentasCorreo(negocio.id)
-    const maxCuentas = getMaxEmailCuentas(negocio.plan)
+    const maxCuentas = maxCuentasCorreo(user, negocio.plan)
 
     return NextResponse.json({
       cuentas: cuentas.map((c) => ({
@@ -28,6 +38,7 @@ export async function GET() {
       })),
       maxCuentas,
       plan: negocio.plan,
+      planActivo: accesoCompleto,
     })
   } catch (error) {
     console.error("Error fetching cuentas correo:", error)
@@ -51,6 +62,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Solo los administradores pueden conectar cuentas" }, { status: 403 })
     }
 
+    if (!isAccesoCompleto({ email: user.email, role: user.role, planPagadoHasta: negocio.plan_pagado_hasta })) {
+      return NextResponse.json(
+        { error: "Se requiere un plan activo para conectar cuentas de correo" },
+        { status: 402 }
+      )
+    }
+
     const body = await request.json()
     const { email } = body
 
@@ -66,7 +84,7 @@ export async function POST(request: Request) {
     }
 
     const existing = await getCuentasCorreo(negocio.id)
-    const maxCuentas = getMaxEmailCuentas(negocio.plan)
+    const maxCuentas = maxCuentasCorreo(user, negocio.plan)
 
     if (existing.length >= maxCuentas) {
       return NextResponse.json(

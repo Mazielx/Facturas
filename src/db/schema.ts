@@ -9,6 +9,9 @@ export async function initializeSchema(): Promise<void> {
       email TEXT,
       moneda_default TEXT DEFAULT 'MXN',
       plan TEXT DEFAULT 'basico',
+      plan_pagado_hasta TEXT,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
       nombre_changed_at TEXT,
       email_changed_at TEXT,
       created_at TEXT DEFAULT (datetime('now')),
@@ -190,5 +193,16 @@ export async function initializeSchema(): Promise<void> {
 
   for (const sql of indexes) {
     await dbExec(sql)
+  }
+
+  const negociosColumns = await dbAll<{ name: string }>("PRAGMA table_info(negocios)")
+  if (!negociosColumns.some((c) => c.name === "plan_pagado_hasta")) {
+    await dbExec("ALTER TABLE negocios ADD COLUMN plan_pagado_hasta TEXT")
+  }
+  if (!negociosColumns.some((c) => c.name === "stripe_customer_id")) {
+    await dbExec("ALTER TABLE negocios ADD COLUMN stripe_customer_id TEXT")
+  }
+  if (!negociosColumns.some((c) => c.name === "stripe_subscription_id")) {
+    await dbExec("ALTER TABLE negocios ADD COLUMN stripe_subscription_id TEXT")
   }
 }

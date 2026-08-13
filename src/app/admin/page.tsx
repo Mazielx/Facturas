@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import BackLink from "../components/back-link"
 
 interface Usuario {
   id: number
@@ -214,12 +215,12 @@ export default function AdminPage() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
           <div className="flex gap-4">
-            <button
-              onClick={() => router.push("/")}
+            <BackLink
+              fallback="/dashboard"
               className="px-4 py-2 text-gray-600 hover:text-gray-900"
             >
               Volver
-            </button>
+            </BackLink>
             <button
               onClick={handleLogout}
               className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"

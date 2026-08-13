@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { APP_NAME } from "@/lib/brand"
 
 interface Negocio {
   id: number
@@ -76,7 +77,7 @@ export default function NegocioSelector({ onSelect }: Props) {
       <div className="w-full max-w-lg px-4">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">
-            Facturas
+            {APP_NAME}
           </h1>
           <p className="text-zinc-500 dark:text-zinc-400">
             Selecciona un negocio para comenzar

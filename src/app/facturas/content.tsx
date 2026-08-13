@@ -4,6 +4,10 @@ import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import ThemeToggle from "../components/theme-toggle"
+import PlanModal from "../components/plan-modal"
+import ExportFilenameModal from "../components/export-filename-modal"
+import BackLink from "../components/back-link"
+import { isSuscripcionActiva } from "@/lib/plans"
 
 interface Factura {
   id: number
@@ -40,6 +44,10 @@ export default function FacturasContent() {
   const [facturas, setFacturas] = useState<Factura[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [loading, setLoading] = useState(true)
+  const [planActivo, setPlanActivo] = useState<boolean | null>(null)
+  const [showPlanModal, setShowPlanModal] = useState(false)
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | null>(null)
+  const [exportName, setExportName] = useState("facturas")
 
   const search = searchParams.get("search") || ""
   const fechaDesde = searchParams.get("fecha_desde") || ""
@@ -76,6 +84,27 @@ export default function FacturasContent() {
 
   useEffect(() => {
     const load = async () => {
+      try {
+        const res = await fetch("/api/negocios")
+        if (!res.ok) return
+        const data = await res.json()
+        const active = (data.negocios || []).find(
+          (n: { slug: string; plan_pagado_hasta: string | null; planActivo?: boolean }) => n.slug === data.activeSlug
+        )
+        setPlanActivo(
+          active
+            ? typeof active.planActivo === "boolean"
+              ? active.planActivo
+              : isSuscripcionActiva(active.plan_pagado_hasta)
+            : false
+        )
+      } catch {}
+    }
+    load()
+  }, [])
+
+  useEffect(() => {
+    const load = async () => {
       setLoading(true)
       const params = new URLSearchParams()
       if (search) params.set("search", search)
@@ -96,6 +125,8 @@ export default function FacturasContent() {
           const data = await res.json()
           setFacturas(data.facturas)
           setPagination(data.pagination)
+        } else if (res.status === 402) {
+          setShowPlanModal(true)
         }
       } finally {
         setLoading(false)
@@ -111,6 +142,22 @@ export default function FacturasContent() {
   }
 
   const handleExport = (format: "csv" | "xlsx") => {
+    if (planActivo === false) {
+      setShowPlanModal(true)
+      return
+    }
+    const today = new Date().toISOString().slice(0, 10)
+    setExportName(`facturas-${today}`)
+    setExportFormat(format)
+  }
+
+  const sanitizeFileName = (name: string) => {
+    const cleaned = name.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim()
+    return cleaned || "facturas"
+  }
+
+  const downloadExport = async (name: string, format: "csv" | "xlsx") => {
+    setExportFormat(null)
     const params = new URLSearchParams()
     if (search) params.set("search", search)
     if (fechaDesde) params.set("fecha_desde", fechaDesde)
@@ -119,7 +166,22 @@ export default function FacturasContent() {
     if (estado) params.set("estado", estado)
     if (moneda) params.set("moneda", moneda)
     params.set("format", format)
-    window.location.href = `/api/facturas/export?${params.toString()}`
+
+    const res = await fetch(`/api/facturas/export?${params.toString()}`)
+    if (!res.ok) {
+      if (res.status === 402) setShowPlanModal(true)
+      return
+    }
+
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${sanitizeFileName(name)}.${format}`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
   }
 
   const toggleEstado = async (facturaId: number, current: string) => {
@@ -171,14 +233,14 @@ export default function FacturasContent() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3">
-            <Link
-              href="/"
+            <BackLink
+              fallback="/dashboard"
               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             >
               ← Inicio
-            </Link>
+            </BackLink>
             <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
               Facturas
             </h1>
@@ -209,6 +271,17 @@ export default function FacturasContent() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
+        {planActivo === false && (
+          <div className="mb-6 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 text-sm border border-amber-200 dark:border-amber-800 flex items-center justify-between gap-4">
+            <p>Tu plan no esta activo. Las funciones estan bloqueadas hasta que confirmes el pago de uno de los planes.</p>
+            <button
+              onClick={() => setShowPlanModal(true)}
+              className="shrink-0 px-4 py-1.5 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-medium transition-colors"
+            >
+              Activar plan
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSearch} className="mb-6 space-y-4">
           <div className="flex gap-2">
             <input
@@ -436,6 +509,16 @@ export default function FacturasContent() {
           )}
         </div>
       </main>
+
+      <PlanModal open={showPlanModal} onClose={() => setShowPlanModal(false)} />
+      <ExportFilenameModal
+        key={exportFormat ?? "closed"}
+        open={exportFormat !== null}
+        format={exportFormat}
+        defaultName={exportName}
+        onClose={() => setExportFormat(null)}
+        onConfirm={(name) => downloadExport(name, exportFormat!)}
+      />
     </div>
   )
 }

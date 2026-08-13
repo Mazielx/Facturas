@@ -3,6 +3,8 @@
 import { useEffect, useState, use } from "react"
 import Link from "next/link"
 import ThemeToggle from "../../components/theme-toggle"
+import PlanModal from "../../components/plan-modal"
+import BackLink from "../../components/back-link"
 
 interface LineaFactura {
   id: number
@@ -95,12 +97,17 @@ export default function FacturaDetailPage({
   const [duplicados, setDuplicados] = useState<Duplicado[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showPlanModal, setShowPlanModal] = useState(false)
   const [revisionNotes, setRevisionNotes] = useState("")
 
   useEffect(() => {
     const load = async () => {
       try {
         const res = await fetch(`/api/facturas/${id}`)
+        if (res.status === 402) {
+          setShowPlanModal(true)
+          return
+        }
         if (!res.ok) {
           setError("Factura no encontrada")
           return
@@ -238,12 +245,12 @@ export default function FacturaDetailPage({
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
         <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
           <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-3">
-            <Link
-              href="/facturas"
+            <BackLink
+              fallback="/facturas"
               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             >
               ← Facturas
-            </Link>
+            </BackLink>
           </div>
         </header>
         <main className="max-w-6xl mx-auto px-4 py-16 text-center">
@@ -258,14 +265,14 @@ export default function FacturaDetailPage({
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/facturas"
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <BackLink
+              fallback="/facturas"
               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             >
               ← Facturas
-            </Link>
+            </BackLink>
             <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
               {factura.numero_factura}
             </h1>
@@ -575,6 +582,8 @@ export default function FacturaDetailPage({
           </div>
         )}
       </main>
+
+      <PlanModal open={showPlanModal} onClose={() => setShowPlanModal(false)} />
     </div>
   )
 }

@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "setup-admin": "tsx scripts/setup-admin.ts",
+    "marcar-plan": "tsx scripts/marcar-plan.ts",
     "backup": "tsx scripts/backup.ts"
   },
   "dependencies": {
@@ -24,7 +25,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.9.2",
-    "xlsx": "^0.18.5"
+    "stripe": "^22.4.0",
+    "xlsx-js-style": "^1.2.0"
   },
   "engines": {
     "node": ">=18"

@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from "react"
-import Link from "next/link"
 import ThemeToggle from "../components/theme-toggle"
+import BackLink from "../components/back-link"
 
 interface UserInfo {
   id: number
@@ -242,9 +242,9 @@ export default function CuentaPage() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Link href="/" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+          <BackLink fallback="/dashboard" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
             ← Inicio
-          </Link>
+          </BackLink>
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Mi cuenta</h1>
           <div className="ml-auto"><ThemeToggle /></div>
         </div>

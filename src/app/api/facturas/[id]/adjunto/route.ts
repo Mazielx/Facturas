@@ -1,6 +1,7 @@
 import { requireActiveTenant } from "@/lib/tenant"
 import { dbGet } from "@/db/client"
 import { ensureSchema } from "@/db"
+import { isAccesoCompleto } from "@/lib/paywall"
 
 export async function GET(
   _request: Request,
@@ -8,8 +9,15 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    await requireActiveTenant()
+    const tenant = await requireActiveTenant()
     await ensureSchema()
+
+    if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
+      return new Response(JSON.stringify({ error: "Se requiere un plan activo" }), {
+        status: 402,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
 
     const adjunto = await dbGet<{ filename: string; mime_type: string; content: Buffer }>(
       "SELECT filename, mime_type, content FROM adjuntos WHERE factura_id = ? LIMIT 1",

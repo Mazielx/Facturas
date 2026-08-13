@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer"
+import { APP_NAME } from "@/lib/brand"
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -67,4 +68,30 @@ export async function notifyNewInvoices(
   `
 
   await sendEmail(adminEmail, "Nuevas facturas procesadas", html)
+}
+
+export async function notifyPaymentFailed(
+  to: string,
+  negocioNombre: string
+): Promise<void> {
+  const html = `
+    <h2>No pudimos cobrar tu suscripcion</h2>
+    <p>Tu pago mensual para <strong>${negocioNombre}</strong> fallo.</p>
+    <p>Para seguir usando ${APP_NAME}, actualiza tu metodo de pago en tu cuenta de Stripe antes de que venza tu acceso.</p>
+  `
+
+  await sendEmail(to, `Pago fallido - ${negocioNombre}`, html)
+}
+
+export async function notifySubscriptionCanceled(
+  to: string,
+  negocioNombre: string
+): Promise<void> {
+  const html = `
+    <h2>Suscripcion cancelada</h2>
+    <p>La suscripcion de <strong>${negocioNombre}</strong> fue cancelada.</p>
+    <p>Si fue un error, puedes volver a suscribirte desde la seccion de planes.</p>
+  `
+
+  await sendEmail(to, `Suscripcion cancelada - ${negocioNombre}`, html)
 }

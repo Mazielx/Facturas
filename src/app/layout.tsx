@@ -1,7 +1,10 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/lib/theme-context"
+import NavMemory from "./components/nav-memory"
+import { APP_NAME, APP_TAGLINE, APP_DESCRIPTION } from "@/lib/brand"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +17,22 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Facturas",
-  description: "Gestión de facturas",
+  metadataBase: new URL("https://facturas-sigma.vercel.app"),
+  title: APP_NAME,
+  description: APP_DESCRIPTION,
+  openGraph: {
+    type: "website",
+    locale: "es_MX",
+    url: "/",
+    siteName: APP_NAME,
+    title: `${APP_NAME} — ${APP_TAGLINE}`,
+    description: APP_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary",
+    title: `${APP_NAME} — ${APP_TAGLINE}`,
+    description: APP_DESCRIPTION,
+  },
 }
 
 const themeScript = `
@@ -41,7 +58,12 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <Suspense fallback={null}>
+            <NavMemory />
+          </Suspense>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )
