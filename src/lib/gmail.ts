@@ -33,17 +33,22 @@ export async function getTokensFromCode(code: string) {
   return tokens
 }
 
-export async function getGoogleProfilePhoto(accessToken: string): Promise<string | null> {
+export async function getGoogleUserInfo(accessToken: string): Promise<{ email?: string; picture?: string } | null> {
   try {
     const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
     if (!res.ok) return null
     const data = await res.json()
-    return data.picture || null
+    return { email: data.email || undefined, picture: data.picture || undefined }
   } catch {
     return null
   }
+}
+
+export async function getGoogleProfilePhoto(accessToken: string): Promise<string | null> {
+  const info = await getGoogleUserInfo(accessToken)
+  return info?.picture || null
 }
 
 export function getOAuth2ClientWithTokens(tokens: Credentials): OAuth2Client {

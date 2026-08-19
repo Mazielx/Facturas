@@ -17,6 +17,14 @@ export async function GET(
     const { id } = await params
     const facturaId = Number(id)
 
+    const factura = await dbGet(
+      "SELECT id FROM facturas WHERE id = ? AND negocio_slug = ?",
+      { "1": facturaId, "2": tenant.slug }
+    )
+    if (!factura) {
+      return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 })
+    }
+
     const etiquetas = await dbAll(
       `SELECT e.* FROM etiquetas e
        JOIN factura_etiqueta fe ON fe.etiqueta_id = e.id
@@ -49,6 +57,14 @@ export async function POST(
 
     if (!etiqueta_id) {
       return NextResponse.json({ error: "etiqueta_id requerido" }, { status: 400 })
+    }
+
+    const factura = await dbGet(
+      "SELECT id FROM facturas WHERE id = ? AND negocio_slug = ?",
+      { "1": facturaId, "2": tenant.slug }
+    )
+    if (!factura) {
+      return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 })
     }
 
     const existing = await dbGet(
@@ -89,6 +105,14 @@ export async function DELETE(
 
     if (!etiquetaId) {
       return NextResponse.json({ error: "etiqueta_id requerido" }, { status: 400 })
+    }
+
+    const factura = await dbGet(
+      "SELECT id FROM facturas WHERE id = ? AND negocio_slug = ?",
+      { "1": facturaId, "2": tenant.slug }
+    )
+    if (!factura) {
+      return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 })
     }
 
     await dbRun(

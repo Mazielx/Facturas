@@ -1,7 +1,8 @@
-import { getTokensFromCode, getGoogleProfilePhoto } from "@/lib/gmail"
+import { getTokensFromCode, getGoogleUserInfo } from "@/lib/gmail"
 import { getCurrentUser } from "@/lib/auth"
 import { createCuentaCorreo, getCuentaCorreoByEmail } from "@/db"
 import { dbRun } from "@/db/client"
+import { verifyOAuthState } from "@/lib/oauth-state"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
@@ -17,23 +18,23 @@ export async function GET(request: Request) {
   try {
     const tokens = await getTokensFromCode(code)
 
-    if (state.startsWith("cuenta_correo:")) {
-      const parts = state.split(":")
-      const email = parts[1]
-      const negocioId = parseInt(parts[2])
+    const verifiedState = verifyOAuthState(state)
 
-      if (email && !isNaN(negocioId) && tokens.access_token && tokens.refresh_token) {
-        const photoUrl = await getGoogleProfilePhoto(tokens.access_token)
+    if (verifiedState) {
+      if (tokens.access_token && tokens.refresh_token) {
+        const googleInfo = await getGoogleUserInfo(tokens.access_token)
+        const email = googleInfo?.email || verifiedState.email
+        const photoUrl = googleInfo?.picture || null
         const tokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null
 
-        const existing = await getCuentaCorreoByEmail(negocioId, email)
+        const existing = await getCuentaCorreoByEmail(verifiedState.negocioId, email)
         if (existing) {
           await dbRun(
             "UPDATE cuentas_correo SET access_token = ?, refresh_token = ?, token_expiry = ?, profile_photo_url = ?, updated_at = datetime('now') WHERE id = ?",
             { "1": tokens.access_token, "2": tokens.refresh_token, "3": tokenExpiry, "4": photoUrl, "5": existing.id }
           )
         } else {
-          await createCuentaCorreo(negocioId, email, tokens.access_token, tokens.refresh_token, tokenExpiry || "", photoUrl || undefined)
+          await createCuentaCorreo(verifiedState.negocioId, email, tokens.access_token, tokens.refresh_token, tokenExpiry || "", photoUrl || undefined)
         }
       }
 
@@ -42,9 +43,9 @@ export async function GET(request: Request) {
 
     const user = await getCurrentUser()
     if (user && tokens.access_token) {
-      const photoUrl = await getGoogleProfilePhoto(tokens.access_token)
-      if (photoUrl) {
-        await dbRun("UPDATE usuarios SET profile_photo_url = ? WHERE id = ?", { "1": photoUrl, "2": user.id })
+      const googleInfo = await getGoogleUserInfo(tokens.access_token)
+      if (googleInfo?.picture) {
+        await dbRun("UPDATE usuarios SET profile_photo_url = ? WHERE id = ?", { "1": googleInfo.picture, "2": user.id })
       }
     }
 

@@ -754,6 +754,106 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
+### Entry 024: Verifying Stripe Is Actually "Ready for Real Payments"
+
+**Date:** 2026-08-12
+**Topic:** Auditing a Stripe integration to find out whether it can take real money, and proving the webhook secret is correct
+**Time spent:** ~45 minutes
+
+**What I learned:**
+- "Stripe connected" is not the same as "Stripe live": `stripe config --list` shows the account mode. `Live mode key: not available` on a "New business sandbox" account means the account is NOT activated for real charges — everything so far (sk_test keys, webhook endpoints with `livemode: false`) is sandbox-only
+- `stripe webhook_endpoints list` reveals the registered endpoint and its `enabled_events`. Mine only had `checkout.session.completed` + `invoice.paid`; the code handles two more events (`invoice.payment_failed`, `customer.subscription.deleted`) that were never subscribed → renewals would still work but dunning/cancellation silently wouldn't
+- The Stripe API **no longer returns the endpoint secret on retrieve** (`secret` key is simply absent) — you only see it once at creation, so you can't diff secrets via the API
+- Definitive proof of a correct `STRIPE_WEBHOOK_SECRET` without the dashboard: sign a fake event yourself with the local secret and POST it to the production webhook URL. Craft `t=<ts>,v1=HMAC-SHA256(secret, "<ts>.<body>")` (Stripe's signed-payload scheme), send it with `stripe-signature` header → production returns `{"received":true}` only if the server's env secret matches yours. 200 = secrets match, 400 "Firma invalida" = they don't
+- `stripe trigger <event>` creates real test fixtures and delivers to registered endpoints, but Vercel request logs (`vercel logs <url>`) only show `λ POST /api/webhooks/stripe`, not the response status — so the self-signed test is the only way to confirm signature acceptance
+- The webhook handler returns `received: true` for ANY valid-signature event even when no negocio matches (it just `break`s per case) — so unmatched fixtures are harmless, by design
+
+**The process:**
+1. `stripe config --list` → confirmed sandbox/test-only account, no live key available (blocked step: user must activate the Stripe account)
+2. `stripe webhook_endpoints list` → found endpoint missing 2 of 4 handled events
+3. `stripe webhook_endpoints update <id> --enabled-events <a> --enabled-events <b> ...` → subscribed all 4
+4. Signed a fake `invoice.paid` event with the local `whsec` in a throwaway Node script, POSTed to `https://…/api/webhooks/stripe` → `200 {"received":true}` → Vercel production secret confirmed correct
+5. `stripe trigger checkout.session.completed / invoice.paid / invoice.payment_failed` + `vercel logs` → confirmed live delivery to production (3 λ POSTs)
+
+**Key insight:**
+> "Before telling a founder 'you can charge real money', audit the mode: test vs live key, subscribed webhook events vs the events the handler actually switches on, and prove the webhook secret with a locally-signed test event that gets a 200 — logs alone don't show the status code."
+
+**Confidence level:** Can audit and verify a Stripe production-readiness chain end-to-end
+
+---
+
+### Entry 025: Multi-Tenant IDOR Hunting (Client-Modified Data, Not Just Auth)
+
+**Date:** 2026-08-13
+**Topic:** Auditing a Next.js multi-tenant app for cross-tenant data leaks after a "back button" bug report grew into a full project bug hunt
+**Time spent:** ~1.5 hours
+
+**What I learned:**
+- Multi-tenant leaks hide on the **client-modified data** (join tables, files, tokens), not just the obvious `WHERE negocio_slug = ?` rows. Pattern to check: any handler that takes a `:id` from the URL and queries a child table by that id (adjuntos, etiquetas, duplicados) must verify the PARENT row belongs to the tenant — otherwise enumerating ids leaks other tenants' rows (confirmed: `adjunto/route.ts` and `etiquetas/route.ts` read by `factura_id` with no ownership check)
+- When a table is global by design (`etiquetas`, `duplicados_potenciales`), the fix is a JOIN back to the tenant-scoped parent: `JOIN facturas fo ON fo.id = dp.factura_id AND fo.negocio_slug = ?` — and BOTH sides of a duplicate pair must be same-tenant (`detectarDuplicados` was inserting cross-tenant pairs because its SELECT had no slug)
+- An OAuth `state` param that is just `kind:email:negocioId` is forgeable: an attacker completes their own Google flow but stamps the victim's business + email into the state, poisoning the victim's connected account. Fix: sign the state (HMAC-SHA256, `payload.sig` with base64url JSON + expiry) at mint time and verify in the callback; derive the key from an existing prod secret so no new env var breaks the paused deployment
+- The client-supplied email in a connect-account flow must not be trusted for WHERE clauses — fetch the **Google-verified email** from `/oauth2/v2/userinfo` instead
+- A "back" bug (`/planes` looping) was caused by a heuristic (`history.length > 1` + a never-cleared flag) — replaced with an explicit sessionStorage stack of visited paths popped via `router.replace(target)`, which is deterministic and testable
+- Truncated audit reports lose findings: when a subagent report gets cut off, re-run a focused audit with explicit "do not re-report already-fixed issues" to recover the rest (found 2 more HIGHs this way)
+- Registering a user with `negocio_id = null` in a system whose tenant gate requires `negocio_id === negocio.id` locks them out of EVERY tenant feature permanently — ownership must be assigned at creation
+
+**The process:**
+1. Refactored back-nav to a sessionStorage stack; ran `tsc` — passes
+2. Audited frontend+API (2 subagents) → 4 confirmed HIGHs (admin `setNegocios`, dashboard stats shape, adjunto IDOR, OAuth state)
+3. Fixed those + etiquetas IDOR; added `src/lib/oauth-state.ts` (signed, expiring states)
+4. Re-audited the remaining surface → 2 more HIGHs (duplicados cross-tenant, register lockout) + 3 MEDIUMs, all fixed (duplicados scoping, register negocio_id, photo GET auth, emails route 401, etiquetas in factura payload, v1 pagination clamp)
+5. Gates: `tsc --noEmit` clean, `next build` clean
+
+**Key insight:**
+> "In multi-tenant apps, audit the id-routed child reads (adjuntos, tags, duplicates, OAuth callbacks) and always prove parent ownership. Sign anything you round-trip through a third party (Google's state param), and never trust a client-supplied identity for a WHERE clause."
+
+**Confidence level:** Can audit and harden a multi-tenant Next.js app for cross-tenant IDORs and tamperable OAuth state
+
+---
+
+### Entry 026: Production Launch Readiness Pass
+
+**Date:** 2026-08-19
+**Topic:** Preparing a SaaS for public launch: SEO, security headers, PWA, error handling, and loading states
+**Time spent:** ~1 hour
+
+**What I learned:**
+- A production app needs: custom 404 page, robots.txt (block private routes), sitemap.xml (list public routes), OG image for social previews, security headers (HSTS, CSP, X-Frame-Options), and loading/error boundary pages
+- Next.js 16 supports `robots.ts` and `sitemap.ts` as route handlers that return typed objects — no need to manually create XML files in `public/`
+- `next.config.ts` is the right place for security headers via `async headers()` — they apply to every route automatically
+- `poweredByHeader: false` removes the `X-Powered-By: Next.js` header (minor security hardening)
+- `reactStrictMode: true` enables extra development checks (double-invocation of effects, etc.)
+- Loading states (`loading.tsx`) in Next.js App Router are automatically shown during server component rendering — they replace the page content with a skeleton while data loads
+- Error boundaries (`error.tsx`) catch rendering errors in their child routes — must be `"use client"` since they use hooks
+- The `not-found.tsx` page is served by Next.js when no route matches — different from `error.tsx` which catches runtime errors
+- OG images can be SVG for simplicity, though some social platforms don't render SVG well — for maximum compatibility, a PNG is better (but SVG works for testing)
+- Service worker versioning (`kapta-v1` → `kapta-v2`) forces cache invalidation on updates — old caches are deleted in the `activate` handler
+
+**The process:**
+1. Created `not-found.tsx` — custom 404 with brand-consistent styling and navigation options
+2. Created `robots.ts` — blocks crawling of private routes (api, admin, dashboard, facturas, empresa, cuenta, configuracion)
+3. Created `sitemap.ts` — lists public routes (/, /login, /planes) with priorities
+4. Created `error.tsx` — client-side error boundary with reset button
+5. Created loading states for dashboard, facturas, and login pages (skeleton UIs)
+6. Updated `next.config.ts` — added security headers, `poweredByHeader: false`, `reactStrictMode: true`, `bcrypt` to `serverExternalPackages`
+7. Updated `layout.tsx` — added OG images, Twitter card `summary_large_image`, robots metadata, noscript fallback
+8. Updated `manifest.json` — added screenshots, id field, prefer_related_applications
+9. Updated `sw.js` — bumped cache version, added image caching strategy, added og-image to precache
+10. Improved landing page — added FAQ section, "14 dias de prueba" CTA text, contact email in footer
+11. Created `og-image.svg` — social preview image with brand colors and tagline
+12. Verified: `tsc --noEmit` clean, ESLint clean on all touched files, `npm test` 71/71 pass, `npm run build` successful
+
+**Mistakes I made:**
+- Initially forgot to add `bcrypt` to `serverExternalPackages` — it was already there in the original config but I rewrote the file from scratch
+- OG image as SVG won't render on all platforms (Facebook, some email clients) — acceptable for launch, can convert to PNG later
+
+**Key insight:**
+> "Launch readiness is a checklist, not a feature. robots.txt, sitemap, security headers, error boundaries, and loading states are invisible when they work and catastrophic when missing. Do them all in one pass."
+
+**Confidence level:** Can prepare a Next.js app for production launch with full SEO, security, and PWA configuration
+
+---
+
 ## Project Portfolio
 
 ### Project 1: Gobernanza (Learning Management System)
@@ -778,8 +878,11 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 - Railway deployment: ephemeral storage, CDN caching, SSR rendering
 - Stripe Checkout subscriptions + webhook grants (`invoice.paid` renewals)
 - Full paywall with 402 gating and admin/owner bypass (`src/lib/paywall.ts`)
+- Production-readiness audit: test vs live mode, subscribed webhook events, signature-secret verification (see Entry 024)
 - Styled XLSX exports with `xlsx-js-style` (widths, header, zebra rows, money formats)
 - Client-side downloads with user-defined filenames (`fetch` blob + `a[download]`)
+- Multi-tenant security hardening: IDOR fixes on id-routed child reads (adjuntos, etiquetas, duplicados), signed OAuth state, register ownership (see Entry 025)
+- Origin-aware back navigation via sessionStorage stack (see Entry 023)
 
 **AI usage:**
 - Created documentation suite
@@ -860,4 +963,4 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
-*Last updated: 2026-08-12*
+*Last updated: 2026-08-19*

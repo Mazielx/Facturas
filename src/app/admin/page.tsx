@@ -73,7 +73,8 @@ export default function AdminPage() {
       }
 
       const usuariosData = await usuariosRes.json()
-      const negociosData = negociosRes.ok ? await negociosRes.json() : []
+      const negociosJson = negociosRes.ok ? await negociosRes.json() : {}
+      const negociosData = Array.isArray(negociosJson) ? negociosJson : (negociosJson.negocios || [])
 
       setUsuarios(usuariosData)
       setNegocios(negociosData)

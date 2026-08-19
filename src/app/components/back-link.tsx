@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { shouldUseHistoryBack } from "@/lib/back-nav"
+import { popBackTarget } from "@/lib/back-nav"
 
 interface BackLinkProps {
   fallback: string
@@ -16,8 +16,9 @@ export default function BackLink({ fallback, children, className, title }: BackL
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
-    if (shouldUseHistoryBack()) {
-      router.back()
+    const target = popBackTarget()
+    if (target) {
+      router.replace(target)
     } else {
       router.push(fallback)
     }

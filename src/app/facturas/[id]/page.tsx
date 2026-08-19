@@ -264,51 +264,63 @@ export default function FacturaDetailPage({
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3 flex-wrap">
+      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-30">
+        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <BackLink
               fallback="/facturas"
-              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors shrink-0"
             >
-              ← Facturas
+              <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+              <span className="hidden sm:inline">← Facturas</span>
             </BackLink>
-            <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+            <h1 className="text-base sm:text-xl font-semibold text-zinc-900 dark:text-zinc-100 truncate">
               {factura.numero_factura}
             </h1>
             <button
               onClick={() => handleEstadoChange(factura.estado === "pagada" ? "pendiente" : "pagada")}
-              className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 ${estadoBadge(factura.estado)}`}
+              className={`hidden sm:inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 ${estadoBadge(factura.estado)}`}
             >
               {factura.estado}
             </button>
             {factura.estado !== "cancelada" && (
               <button
                 onClick={() => handleEstadoChange("cancelada")}
-                className="inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-800"
+                className="hidden sm:inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-800"
               >
                 Cancelar
               </button>
             )}
-            <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium ${confianzaBadge(factura.confianza_nivel)}`}>
+            <span className={`hidden sm:inline-block px-2 py-0.5 rounded-md text-xs font-medium ${confianzaBadge(factura.confianza_nivel)}`}>
               Confianza: {factura.confianza_nivel} ({Math.round(factura.confianza_score * 100)}%)
             </span>
             {factura.requiere_revision ? (
-              <span className="inline-block px-2 py-0.5 rounded-md text-xs font-medium bg-orange-100 text-orange-800">
+              <span className="hidden sm:inline-block px-2 py-0.5 rounded-md text-xs font-medium bg-orange-100 text-orange-800">
                 Requiere Revision
               </span>
             ) : null}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 sm:hidden">
+              {factura.requiere_revision ? (
+                <span className="w-2 h-2 rounded-full bg-orange-500" />
+              ) : null}
+              <button
+                onClick={() => handleEstadoChange(factura.estado === "pagada" ? "pendiente" : "pagada")}
+                className={`px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 ${estadoBadge(factura.estado)}`}
+              >
+                {factura.estado}
+              </button>
+            </div>
             <ThemeToggle />
             {adjuntos.length > 0 && (
               <a
                 href={`/api/facturas/${factura.id}/adjunto`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm px-4 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                className="text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
               >
-                Descargar PDF
+                PDF
               </a>
             )}
           </div>
@@ -421,6 +433,7 @@ export default function FacturaDetailPage({
               <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Líneas</h2>
             </div>
             <div className="overflow-x-auto">
+              <div className="hidden sm:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-zinc-500 dark:text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
@@ -460,7 +473,24 @@ export default function FacturaDetailPage({
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+              </div>
+
+              <div className="sm:hidden divide-y divide-zinc-100 dark:divide-zinc-800">
+                {lineas.map((l) => (
+                  <div key={l.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-sm text-zinc-900 dark:text-zinc-100 truncate flex-1 min-w-0">{l.descripcion}</p>
+                      <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 shrink-0">{formatCurrency(l.total, moneda)}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                      <span>{l.cantidad} x {formatCurrency(l.precio_unitario, moneda)}</span>
+                      {l.descuento > 0 && <span>-{l.descuento}%</span>}
+                      <span>IVA {l.tipo_iva}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
           </div>
         )}
 
@@ -560,22 +590,24 @@ export default function FacturaDetailPage({
         </div>
 
         {duplicados.length > 0 && (
-          <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-xl p-5">
+          <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 sm:p-5">
             <h2 className="text-sm font-medium text-orange-800 dark:text-orange-300 mb-3 uppercase tracking-wide">
               Duplicados Potenciales ({duplicados.length})
             </h2>
             <div className="space-y-2">
               {duplicados.map((d) => (
-                <div key={d.id} className="flex items-center gap-3 text-sm">
+                <div key={d.id} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm">
                   <Link
                     href={`/facturas/${d.factura_id === Number(id) ? d.duplicada_de_id : d.factura_id}`}
                     className="text-orange-700 dark:text-orange-300 hover:underline font-medium"
                   >
                     {d.numero_factura}
                   </Link>
-                  <span className="text-orange-600 dark:text-orange-400">{d.emisor_nombre}</span>
-                  <span className="text-orange-500 dark:text-orange-500">{formatCurrency(d.total, moneda)}</span>
-                  <span className="text-orange-400 dark:text-orange-500 text-xs">Score: {Math.round(d.score * 100)}%</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-orange-600 dark:text-orange-400">{d.emisor_nombre}</span>
+                    <span className="text-orange-500 dark:text-orange-500">{formatCurrency(d.total, moneda)}</span>
+                    <span className="text-orange-400 dark:text-orange-500 text-xs">Score: {Math.round(d.score * 100)}%</span>
+                  </div>
                 </div>
               ))}
             </div>

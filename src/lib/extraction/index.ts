@@ -35,21 +35,23 @@ export function nivelConfianza(score: number): "confiable" | "alta" | "media" | 
 
 export async function detectarDuplicados(
   facturaId: number,
-  datos: FacturaCompleta
+  datos: FacturaCompleta,
+  negocioSlug?: string
 ): Promise<Array<{ facturaId: number; razon: string; score: number }>> {
   const duplicados: Array<{ facturaId: number; razon: string; score: number }> = []
+  const slug = negocioSlug || "default"
 
   const mismoNumero = await dbGet<{ id: number }>(
-    "SELECT id FROM facturas WHERE numero_factura = ? AND emisor_nif = ? AND id != ?",
-    { "1": datos.factura.numeroFactura, "2": datos.emisor.nif || "", "3": facturaId }
+    "SELECT id FROM facturas WHERE numero_factura = ? AND emisor_nif = ? AND id != ? AND negocio_slug = ?",
+    { "1": datos.factura.numeroFactura, "2": datos.emisor.nif || "", "3": facturaId, "4": slug }
   )
   if (mismoNumero) {
     duplicados.push({ facturaId: mismoNumero.id, razon: "mismo_numero", score: 0.95 })
   }
 
   const mismoMonto = await dbGet<{ id: number }>(
-    "SELECT id FROM facturas WHERE ABS(total - ?) < 0.01 AND fecha_emision = ? AND emisor_nif = ? AND id != ?",
-    { "1": datos.factura.total, "2": datos.factura.fechaEmision, "3": datos.emisor.nif || "", "4": facturaId }
+    "SELECT id FROM facturas WHERE ABS(total - ?) < 0.01 AND fecha_emision = ? AND emisor_nif = ? AND id != ? AND negocio_slug = ?",
+    { "1": datos.factura.total, "2": datos.factura.fechaEmision, "3": datos.emisor.nif || "", "4": facturaId, "5": slug }
   )
   if (mismoMonto) {
     duplicados.push({ facturaId: mismoMonto.id, razon: "mismo_monto_fecha", score: 0.85 })
@@ -132,7 +134,7 @@ export async function processAttachment(
       negocioSlug: negocioSlug || "default",
     })
 
-    const duplicados = await detectarDuplicados(facturaId, datos)
+    const duplicados = await detectarDuplicados(facturaId, datos, negocioSlug)
     for (const dup of duplicados) {
       await dbRun(
         "INSERT INTO duplicados_potenciales (factura_id, duplicada_de_id, razon, score) VALUES (?, ?, ?, ?)",

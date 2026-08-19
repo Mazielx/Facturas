@@ -80,7 +80,7 @@ function LoginPageContent() {
         </BackLink>
       </div>
       <div className="absolute top-4 right-4"><ThemeToggle /></div>
-      <div className="w-full max-w-md p-8 bg-white dark:bg-zinc-900 rounded-lg shadow-md">
+      <div className="w-full max-w-md p-5 sm:p-8 bg-white dark:bg-zinc-900 rounded-lg shadow-md mx-4">
         <h1 className="text-2xl font-bold text-center text-gray-900 dark:text-zinc-100 mb-6">
           {mode === "login" ? "Iniciar Sesion" : "Crear Cuenta"}
         </h1>

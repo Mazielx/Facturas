@@ -29,11 +29,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const usuario = await createUsuario(email, password, nombre, "negocio")
+    const allNegocios = await getAllNegocios()
+    const negocioId = allNegocios.length === 1 ? allNegocios[0].id : undefined
+
+    const usuario = await createUsuario(email, password, nombre, "negocio", negocioId)
     const session = await createSession(usuario.id)
 
     let negocioSlug: string | null = null
-    const allNegocios = await getAllNegocios()
     if (allNegocios.length === 1) {
       negocioSlug = allNegocios[0].slug
     }

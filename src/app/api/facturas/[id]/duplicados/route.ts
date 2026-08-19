@@ -20,8 +20,9 @@ export async function GET(
     const duplicados = await dbAll(
       `SELECT dp.*, f.numero_factura, f.emisor_nombre, f.total, f.fecha_emision
        FROM duplicados_potenciales dp
+       JOIN facturas fo ON fo.id = dp.factura_id
        JOIN facturas f ON f.id = dp.duplicada_de_id
-       WHERE dp.factura_id = ? AND f.negocio_slug = ?
+       WHERE dp.factura_id = ? AND fo.negocio_slug = ?
        ORDER BY dp.score DESC`,
       { "1": facturaId, "2": tenant.slug }
     )

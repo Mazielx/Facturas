@@ -32,7 +32,7 @@ interface Resumen {
   totalFacturas: number
   totalImporte: number
   totalIva: number
-  porConfianza: Record<string, number>
+  porConfianza: Array<{ confianza_nivel: string; count: number }>
   requierenRevision: number
   duplicados: number
 }
@@ -55,6 +55,17 @@ interface Pagination {
   limit: number
   total: number
   totalPages: number
+}
+
+function buildResumen(stats: any): Resumen {
+  return {
+    totalFacturas: stats?.resumen?.totalFacturas || 0,
+    totalImporte: stats?.resumen?.totalImporte || 0,
+    totalIva: stats?.resumen?.totalIva || 0,
+    porConfianza: Array.isArray(stats?.porConfianza) ? stats.porConfianza : [],
+    requierenRevision: stats?.requierenRevision || 0,
+    duplicados: stats?.duplicados || 0,
+  }
 }
 
 export default function Home() {
@@ -150,7 +161,7 @@ export default function Home() {
 
         if (statsRes.ok) {
           const stats = await statsRes.json()
-          setResumen(stats.resumen)
+          setResumen(buildResumen(stats))
           setPorMes(stats.porMes || [])
           setTopEmisores(stats.topEmisores || [])
           setPorEstado(stats.porEstado || [])
@@ -205,7 +216,7 @@ export default function Home() {
           ])
           if (statsRes.ok) {
             const stats = await statsRes.json()
-            setResumen(stats.resumen)
+            setResumen(buildResumen(stats))
             setPorMes(stats.porMes || [])
             setTopEmisores(stats.topEmisores || [])
             setPorEstado(stats.porEstado || [])
@@ -259,14 +270,7 @@ export default function Home() {
       fetch("/api/facturas/stats")
         .then((r) => r.json())
         .then((stats) => {
-          setResumen({
-            totalFacturas: stats.resumen?.totalFacturas || 0,
-            totalImporte: stats.resumen?.totalImporte || 0,
-            totalIva: stats.resumen?.totalIva || 0,
-            porConfianza: stats.porConfianza || {},
-            requierenRevision: stats.requierenRevision || 0,
-            duplicados: stats.duplicados || 0,
-          })
+          setResumen(buildResumen(stats))
         })
     }
   }
@@ -302,27 +306,37 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-lg sm:text-xl font-semibold text-zinc-900 dark:text-zinc-100 truncate">
               {negocio.nombre}
             </h1>
-            <span className="text-xs px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono">
+            <span className="hidden sm:inline text-xs px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono shrink-0">
               {negocio.moneda_default}
             </span>
           </div>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={handleExtract}
               disabled={extracting}
-              className="text-sm px-4 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              className="hidden sm:block text-sm px-4 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
             >
-              {extracting ? "Extrayendo..." : "Extraer de Gmail"}
+              {extracting ? "Extrayendo..." : "Extraer"}
+            </button>
+            <button
+              onClick={handleExtract}
+              disabled={extracting}
+              className="sm:hidden w-9 h-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              aria-label="Extraer de Gmail"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
             </button>
             <Link
               href="/facturas"
-              className="text-sm px-4 py-2 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+              className="hidden sm:block text-sm px-4 py-2 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
             >
               Ver todas
             </Link>
@@ -336,12 +350,12 @@ export default function Home() {
                   <img src={usuario.profile_photo_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
                 )}
               </button>
               {menuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-lg z-50 overflow-hidden">
+                <div className="absolute right-0 top-full mt-2 w-60 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-lg z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-700">
                     <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
                       {usuario?.nombre || "Usuario"}
@@ -351,6 +365,16 @@ export default function Home() {
                     </p>
                   </div>
                   <div className="py-1">
+                    <Link
+                      href="/facturas"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors sm:hidden"
+                    >
+                      <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Ver facturas
+                    </Link>
                     <Link
                       href="/cuenta"
                       onClick={() => setMenuOpen(false)}
@@ -390,7 +414,7 @@ export default function Home() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      Configuración
+                      Configuracion
                     </Link>
                   </div>
                   <div className="border-t border-zinc-100 dark:border-zinc-700 py-1">
@@ -401,7 +425,7 @@ export default function Home() {
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
-                      Cerrar sesión
+                      Cerrar sesion
                     </button>
                   </div>
                 </div>
@@ -457,7 +481,9 @@ export default function Home() {
               <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5">
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">Confiables</p>
                 <p className="text-2xl font-semibold text-green-600 dark:text-green-400">
-                  {(resumen.porConfianza?.confiable || 0) + (resumen.porConfianza?.alta || 0)}
+                  {resumen.porConfianza
+                    .filter((c) => c.confianza_nivel === "confiable" || c.confianza_nivel === "alta")
+                    .reduce((acc, c) => acc + c.count, 0)}
                 </p>
               </div>
               <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-5">
@@ -500,7 +526,7 @@ export default function Home() {
 
           {facturas.length === 0 ? (
             <div className="px-5 py-12 text-center text-zinc-500 dark:text-zinc-400">
-              <p className="text-lg mb-2">No hay facturas realizadas recientemente</p>
+              <p className="text-lg mb-2">No hay facturas recientes</p>
               <p className="text-sm mb-4">Conecta tu Gmail y extrae las facturas para comenzar</p>
               <a
                 href="/api/auth"
@@ -510,54 +536,88 @@ export default function Home() {
               </a>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-zinc-500 dark:text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
-                    <th className="px-5 py-3 font-medium">Fecha</th>
-                    <th className="px-5 py-3 font-medium">Emisor</th>
-                    <th className="px-5 py-3 font-medium">Número</th>
-                    <th className="px-5 py-3 font-medium text-right">Total</th>
-                    <th className="px-5 py-3 font-medium">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {facturas.map((f) => (
-                    <tr
-                      key={f.id}
-                      onClick={() => router.push(`/facturas/${f.id}`)}
-                      className="border-b border-zinc-100 dark:border-zinc-800 last:border-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
-                    >
-                      <td className="px-5 py-3 text-zinc-600 dark:text-zinc-400">
-                        {formatDate(f.fecha_emision)}
-                      </td>
-                      <td className="px-5 py-3 text-zinc-900 dark:text-zinc-100 font-medium">
+            <>
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-zinc-500 dark:text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
+                      <th className="px-5 py-3 font-medium">Fecha</th>
+                      <th className="px-5 py-3 font-medium">Emisor</th>
+                      <th className="px-5 py-3 font-medium">Numero</th>
+                      <th className="px-5 py-3 font-medium text-right">Total</th>
+                      <th className="px-5 py-3 font-medium">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {facturas.map((f) => (
+                      <tr
+                        key={f.id}
+                        onClick={() => router.push(`/facturas/${f.id}`)}
+                        className="border-b border-zinc-100 dark:border-zinc-800 last:border-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer"
+                      >
+                        <td className="px-5 py-3 text-zinc-600 dark:text-zinc-400">
+                          {formatDate(f.fecha_emision)}
+                        </td>
+                        <td className="px-5 py-3 text-zinc-900 dark:text-zinc-100 font-medium">
+                          {f.emisor_nombre}
+                        </td>
+                        <td className="px-5 py-3 text-zinc-600 dark:text-zinc-400 font-mono text-xs">
+                          {f.numero_factura}
+                        </td>
+                        <td className="px-5 py-3 text-right text-zinc-900 dark:text-zinc-100 font-medium">
+                          {f.total_convertido !== undefined
+                            ? formatCurrency(f.total_convertido, f.moneda_default || "MXN")
+                            : formatCurrency(f.total, f.moneda)}
+                        </td>
+                        <td className="px-5 py-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleEstado(f.id, f.estado)
+                            }}
+                            className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 ${estadoBadge(f.estado)}`}
+                          >
+                            {f.estado}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="sm:hidden divide-y divide-zinc-100 dark:divide-zinc-800">
+                {facturas.map((f) => (
+                  <div
+                    key={f.id}
+                    onClick={() => router.push(`/facturas/${f.id}`)}
+                    className="px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer active:bg-zinc-100 dark:active:bg-zinc-800"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate flex-1 min-w-0">
                         {f.emisor_nombre}
-                      </td>
-                      <td className="px-5 py-3 text-zinc-600 dark:text-zinc-400 font-mono text-xs">
-                        {f.numero_factura}
-                      </td>
-                      <td className="px-5 py-3 text-right text-zinc-900 dark:text-zinc-100 font-medium">
+                      </p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleEstado(f.id, f.estado)
+                        }}
+                        className={`shrink-0 inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 ${estadoBadge(f.estado)}`}
+                      >
+                        {f.estado}
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                      <span>{formatDate(f.fecha_emision)} · {f.numero_factura}</span>
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100">
                         {f.total_convertido !== undefined
                           ? formatCurrency(f.total_convertido, f.moneda_default || "MXN")
                           : formatCurrency(f.total, f.moneda)}
-                      </td>
-                      <td className="px-5 py-3">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleEstado(f.id, f.estado)
-                          }}
-                          className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 ${estadoBadge(f.estado)}`}
-                        >
-                          {f.estado}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {pagination && pagination.total > 10 && (

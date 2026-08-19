@@ -20,8 +20,12 @@ export async function GET(
     }
 
     const adjunto = await dbGet<{ filename: string; mime_type: string; content: Buffer }>(
-      "SELECT filename, mime_type, content FROM adjuntos WHERE factura_id = ? LIMIT 1",
-      { "1": id }
+      `SELECT a.filename, a.mime_type, a.content
+       FROM adjuntos a
+       JOIN facturas f ON f.id = a.factura_id
+       WHERE a.factura_id = ? AND f.negocio_slug = ?
+       LIMIT 1`,
+      { "1": id, "2": tenant.slug }
     )
 
     if (!adjunto || !adjunto.content) {

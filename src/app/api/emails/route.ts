@@ -3,11 +3,20 @@ import { cookies } from "next/headers"
 import { getOAuth2ClientWithTokens, listEmailsWithAttachments, getAuthFromCuentaCorreo } from "@/lib/gmail"
 import { getCuentasCorreo, updateCuentaCorreoTokens } from "@/db"
 import { requireActiveTenant } from "@/lib/tenant"
+import { getCurrentUser } from "@/lib/auth"
 import { isAccesoCompleto } from "@/lib/paywall"
 import type { Credentials } from "google-auth-library"
 import type { EmailListResponse } from "@/lib/types"
 
 export async function GET() {
+  const user = await getCurrentUser()
+  if (!user) {
+    return NextResponse.json<EmailListResponse>(
+      { emails: [], error: "No autenticado" },
+      { status: 401 }
+    )
+  }
+
   let negocioId: number | null = null
   try {
     const tenant = await requireActiveTenant()
@@ -19,7 +28,7 @@ export async function GET() {
       )
     }
   } catch {
-    // no business selected
+    // authenticated but no negocio selected -> fall back to cookie tokens
   }
 
   if (negocioId) {

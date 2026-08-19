@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import fs from "fs"
 import path from "path"
+import { getCurrentUser } from "@/lib/auth"
 
 const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads")
 
@@ -9,6 +10,11 @@ export async function GET(
   { params }: { params: Promise<{ filename: string }> }
 ) {
   const { filename } = await params
+
+  const user = await getCurrentUser()
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  }
 
   if (filename.includes("..") || filename.includes("/")) {
     return NextResponse.json({ error: "Invalid filename" }, { status: 400 })

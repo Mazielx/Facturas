@@ -54,9 +54,9 @@ function PlanesPageContent() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-10 space-y-12">
+      <main className="max-w-5xl mx-auto px-4 py-8 sm:py-10 space-y-10 sm:space-y-12">
         <section className="text-center space-y-3">
-          <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-zinc-100">
             Recupera horas de trabajo cada mes
           </h2>
           <p className="text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
@@ -137,7 +137,7 @@ function PlanesPageContent() {
           ))}
         </section>
 
-        <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
+        <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
             Cuanto cuesta hacer el mismo trabajo a mano
           </h3>
@@ -145,7 +145,7 @@ function PlanesPageContent() {
             Datos de Ardent Partners, IOFM y APQC: capturar y archivar una factura manualmente toma de 10 a 15
             minutos, sin contar errores, correcciones y conciliaciones.
           </p>
-          <div className="overflow-x-auto">
+          <div className="hidden sm:block overflow-x-auto">
             <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
               <thead>
                 <tr>
@@ -167,15 +167,29 @@ function PlanesPageContent() {
               </tbody>
             </table>
           </div>
+          <div className="sm:hidden space-y-3">
+            {CALCULO_MANUAL.map((fila) => (
+              <div key={fila.facturas} className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{fila.facturas}</span>
+                  <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{fila.costoPleno}</span>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
+                  <span>{fila.horas} de trabajo</span>
+                  <span>Mano de obra: {fila.costoManoDeObra}</span>
+                </div>
+              </div>
+            ))}
+          </div>
           <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-4">
             Costo pleno estimado incluyendo errores, correcciones, archivo y conciliacion. En MXN, con salario
             real de auxiliar contable (~$110/hr con prestaciones).
           </p>
         </section>
 
-        <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
+        <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Tarea por tarea</h3>
-          <div className="overflow-x-auto">
+          <div className="hidden sm:block overflow-x-auto">
             <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
               <thead>
                 <tr>
@@ -194,6 +208,17 @@ function PlanesPageContent() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="sm:hidden space-y-3">
+            {COMPARATIVA_MANUAL.map((fila) => (
+              <div key={fila.tarea} className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-1.5">{fila.tarea}</p>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-zinc-500 dark:text-zinc-400">A mano: {fila.manual}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">{fila.app}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 

@@ -546,6 +546,23 @@ Run these before shipping a feature that real customers will touch:
 - "Fix crowded headers with `flex-wrap gap-2` on the container, `min-w-0 truncate` on the title, `flex-wrap justify-end` on the action group, and `hidden sm:block` for secondary CTAs"
 - "Verify the fix without a browser: tsc, lint the changed files only, run tests, deploy, then curl for 200"
 
+## Stripe production-readiness prompts
+
+- "Run `stripe config --list` and report the account mode: is `Live mode key` available, or is this a sandbox/test-only account?"
+- "List `stripe webhook_endpoints` and diff `enabled_events` against the events the webhook route switches on — if the handler covers more than the subscription, add the missing events with `stripe webhook_endpoints update <id> --enabled-events ...`"
+- "Verify the production webhook secret without the dashboard: sign a fake event with the local secret (`t=<ts>,v1=HMAC-SHA256(secret, '<ts>.<body>')`) and POST to the live webhook URL; 200 `received:true` means the env secrets match, 400 'Firma invalida' means they don't"
+- "Confirm webhook delivery with `stripe trigger <event>` + `vercel logs <url>`, and remember the log line only proves the function ran — it does NOT show the response status"
+
+## Multi-tenant security audit prompts
+
+- "For every API route that takes an `:id` and reads a CHILD table (adjuntos, etiquetas, duplicados, lineas), verify the PARENT row belongs to the tenant — `JOIN facturas fo ON fo.id = child.factura_id AND fo.negocio_slug = ?` — before returning anything; enumerating ids must not leak another tenant's rows"
+- "When a join/mapping table is global by design, check BOTH sides of every relation for the tenant predicate (a duplicate-pair table must link same-tenant invoices only)"
+- "Treat OAuth `state` as untrusted input: sign it (`payload.sig` = base64url JSON + HMAC-SHA256 with expiry) at mint time and verify in the callback; derive the key from an existing production secret so no new env var is required"
+- "Never use a client-supplied email in a WHERE clause for token/account writes — fetch the Google-verified email from /oauth2/v2/userinfo and use that"
+- "Re-run a focused audit with explicit 'already-fixed issues are excluded' when a previous audit report was truncated — recovered findings are usually HIGH severity"
+- "Check that account creation assigns ownership (negocio_id) at insert time; a user created with `negocio_id = null` fails every tenant gate forever"
+- "An audit script over `:id` routes + a signed-state OAuth helper is the difference between 'auth works' and 'data is actually isolated'"
+
 ---
 
-*Last updated: 2026-08-12*
+*Last updated: 2026-08-13*

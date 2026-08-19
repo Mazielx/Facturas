@@ -232,24 +232,30 @@ export default function FacturasContent() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3">
+      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <BackLink
               fallback="/dashboard"
               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             >
-              ← Inicio
+              <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="hidden sm:inline">← Inicio</span>
             </BackLink>
-            <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+            <h1 className="text-lg sm:text-xl font-semibold text-zinc-900 dark:text-zinc-100">
               Facturas
             </h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             <ThemeToggle />
             <div className="relative group">
-              <button className="text-sm px-4 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
-                Exportar ▾
+              <button className="text-sm px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
+                <span className="hidden sm:inline">Exportar ▾</span>
+                <svg className="w-4 h-4 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
               </button>
               <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                 <button
@@ -282,39 +288,39 @@ export default function FacturasContent() {
             </button>
           </div>
         )}
-        <form onSubmit={handleSearch} className="mb-6 space-y-4">
+        <form onSubmit={handleSearch} className="mb-6 space-y-3">
           <div className="flex gap-2">
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Buscar por número, emisor o receptor..."
-              className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+              placeholder="Buscar factura..."
+              className="flex-1 px-3 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500 min-w-0"
             />
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+              className="px-4 py-2.5 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors shrink-0"
             >
               Buscar
             </button>
             {hasFilters && (
               <Link
                 href="/facturas"
-                className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="px-3 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shrink-0"
               >
                 Limpiar
               </Link>
             )}
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
             <div>
               <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">Desde</label>
               <input
                 type="date"
                 value={fechaDesde}
                 onChange={(e) => router.push(buildUrl({ fecha_desde: e.target.value }))}
-                className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
               />
             </div>
             <div>
@@ -323,7 +329,7 @@ export default function FacturasContent() {
                 type="date"
                 value={fechaHasta}
                 onChange={(e) => router.push(buildUrl({ fecha_hasta: e.target.value }))}
-                className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
               />
             </div>
             <div>
@@ -331,7 +337,7 @@ export default function FacturasContent() {
               <select
                 value={estado}
                 onChange={(e) => router.push(buildUrl({ estado: e.target.value }))}
-                className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
               >
                 <option value="">Todos</option>
                 <option value="pendiente">Pendiente</option>
@@ -344,7 +350,7 @@ export default function FacturasContent() {
               <select
                 value={moneda}
                 onChange={(e) => router.push(buildUrl({ moneda: e.target.value }))}
-                className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
               >
                 <option value="">Todas</option>
                 <option value="EUR">EUR</option>
@@ -358,8 +364,8 @@ export default function FacturasContent() {
                 type="text"
                 value={emisor}
                 onChange={(e) => router.push(buildUrl({ emisor: e.target.value }))}
-                placeholder="Filtrar emisor..."
-                className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                placeholder="Filtrar..."
+                className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
               />
             </div>
             <div>
@@ -367,7 +373,7 @@ export default function FacturasContent() {
               <select
                 value={confianza}
                 onChange={(e) => router.push(buildUrl({ confianza: e.target.value }))}
-                className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
               >
                 <option value="">Todas</option>
                 <option value="confiable">Confiable</option>
@@ -381,7 +387,7 @@ export default function FacturasContent() {
               <select
                 value={revision}
                 onChange={(e) => router.push(buildUrl({ revision: e.target.value }))}
-                className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-500"
               >
                 <option value="">Todas</option>
                 <option value="1">Requiere revision</option>
@@ -403,7 +409,7 @@ export default function FacturasContent() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-zinc-500 dark:text-zinc-400 border-b border-zinc-100 dark:border-zinc-800">
@@ -480,26 +486,70 @@ export default function FacturasContent() {
                 </table>
               </div>
 
+              <div className="sm:hidden divide-y divide-zinc-100 dark:divide-zinc-800">
+                {facturas.map((f) => (
+                  <div
+                    key={f.id}
+                    onClick={() => router.push(`/facturas/${f.id}`)}
+                    className="px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer active:bg-zinc-100 dark:active:bg-zinc-800"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate flex-1 min-w-0">
+                        {f.emisor_nombre}
+                      </p>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {f.requiere_revision ? (
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-500" />
+                        ) : null}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleEstado(f.id, f.estado)
+                          }}
+                          className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium cursor-pointer hover:opacity-80 ${estadoBadge(f.estado)}`}
+                        >
+                          {f.estado}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
+                      <span className="truncate">{formatDate(f.fecha_emision)} · {f.numero_factura}</span>
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100 shrink-0 ml-2">
+                        {f.total_convertido !== undefined
+                          ? formatCurrency(f.total_convertido, f.moneda_default || "MXN")
+                          : formatCurrency(f.total, f.moneda)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${confianzaBadge(f.confianza_nivel)}`}>
+                        {f.confianza_nivel}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-mono">{f.moneda_default || f.moneda}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               {pagination && pagination.totalPages > 1 && (
-                <div className="px-5 py-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {pagination.total} facturas · Página {pagination.page} de {pagination.totalPages}
+                <div className="px-4 sm:px-5 py-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2">
+                  <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 truncate">
+                    {pagination.total} facturas · {pagination.page}/{pagination.totalPages}
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5 shrink-0">
                     {page > 1 && (
                       <Link
                         href={buildUrl({ page: String(page - 1) })}
-                        className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        className="px-2.5 sm:px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                       >
-                        ← Anterior
+                        ← Ant
                       </Link>
                     )}
                     {page < pagination.totalPages && (
                       <Link
                         href={buildUrl({ page: String(page + 1) })}
-                        className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        className="px-2.5 sm:px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                       >
-                        Siguiente →
+                        Sig →
                       </Link>
                     )}
                   </div>

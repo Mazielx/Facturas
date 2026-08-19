@@ -22,8 +22,8 @@ export default async function LandingPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="max-w-6xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shrink-0">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m-6 4h6m-6 4h4m-6 6h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -55,14 +55,14 @@ export default async function LandingPage() {
       </header>
 
       <main>
-        <section className="max-w-6xl mx-auto px-4 py-20 md:py-28 text-center">
-          <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 mb-6">
+        <section className="max-w-6xl mx-auto px-4 py-14 md:py-28 text-center">
+          <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 mb-4 sm:mb-6">
             Extrae, valida, organiza y archiva
           </span>
-          <h1 className="text-4xl md:text-6xl font-bold text-zinc-900 dark:text-zinc-100 max-w-3xl mx-auto leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-zinc-900 dark:text-zinc-100 max-w-3xl mx-auto leading-tight">
             Tus facturas, organizadas automaticamente
           </h1>
-          <p className="mt-6 text-lg text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
+          <p className="mt-4 sm:mt-6 text-base sm:text-lg text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
             Conecta tu direccion de correo electronico y {APP_NAME} extraera cada factura que se
             encuentre ahi, detecta duplicados, busca, reporta y exporta todo en segundos. Recupera
             horas cada mes y organiza mejor tus gastos.
@@ -72,7 +72,7 @@ export default async function LandingPage() {
               href="/login"
               className="px-6 py-3 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors w-full sm:w-auto"
             >
-              Crear cuenta gratis
+              Crear cuenta
             </Link>
             <Link
               href="/planes"
@@ -81,15 +81,15 @@ export default async function LandingPage() {
               Ver precios
             </Link>
           </div>
-          <div className="mt-12 grid grid-cols-3 gap-4 max-w-2xl mx-auto">
+          <div className="mt-8 sm:mt-12 grid grid-cols-3 gap-3 sm:gap-4 max-w-2xl mx-auto">
             {[
               ["10-15 min", "cuesta capturar una factura a mano"],
               ["Segundos", `es lo que tarda ${APP_NAME}`],
               ["Hasta 80%", "de horas ahorradas al mes"],
             ].map(([num, label]) => (
-              <div key={num} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
-                <p className="text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-100">{num}</p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{label}</p>
+              <div key={num} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 sm:p-4">
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-zinc-900 dark:text-zinc-100">{num}</p>
+                <p className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 mt-1">{label}</p>
               </div>
             ))}
           </div>
@@ -201,6 +201,38 @@ export default async function LandingPage() {
           </p>
         </section>
 
+        <section className="max-w-6xl mx-auto px-4 py-16">
+          <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 text-center">Preguntas frecuentes</h2>
+          <p className="text-zinc-600 dark:text-zinc-400 text-center mt-2 mb-10">
+            Resolvemos tus dudas antes de empezar.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {[
+              [
+                "Que tipos de facturas puedo subir?",
+                "Aceptamos facturas en formato PDF y XML (CFDI 3.3 y 4.0). El sistema detecta automaticamente el formato y extrae los datos relevantes.",
+              ],
+              [
+                "Mis datos estan seguros?",
+                "Si. Usamos cifrado en transito y en reposo. Cada negocio tiene sus datos aislados. No compartimos informacion con terceros.",
+              ],
+              [
+                "Puedo cancelar en cualquier momento?",
+                "Si. No hay contratos a largo plazo. Cancela tu suscripcion cuando quieras desde tu cuenta.",
+              ],
+              [
+                "Funciona con cualquier correo?",
+                "Actualmente soportamos Gmail via Google OAuth. Estamos trabajando en soporte para Outlook y otros proveedores.",
+              ],
+            ].map(([pregunta, respuesta]) => (
+              <div key={pregunta} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6">
+                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{pregunta}</h3>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">{respuesta}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="max-w-6xl mx-auto px-4 py-20 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-zinc-100 max-w-2xl mx-auto">
             Recupera las horas que pierdes cada mes capturando facturas
@@ -214,6 +246,9 @@ export default async function LandingPage() {
           >
             Crear cuenta gratis
           </Link>
+          <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+            14 dias de prueba incluidos. Sin tarjeta de credito.
+          </p>
         </section>
       </main>
 
@@ -225,11 +260,12 @@ export default async function LandingPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m-6 4h6m-6 4h4m-6 6h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </span>
-            <span>© 2026 {APP_NAME}</span>
+            <span>&copy; 2026 {APP_NAME}. Todos los derechos reservados.</span>
           </div>
           <nav aria-label="Legal" className="flex items-center gap-6">
             <Link href="/planes" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Precios</Link>
             <Link href="/login" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Iniciar sesion</Link>
+            <a href="mailto:hola@kapta.app" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Contacto</a>
           </nav>
         </div>
       </footer>

@@ -385,6 +385,47 @@ Verify what's actually failing and fix it.
 
 ---
 
+## Case Study: Stripe Production-Readiness Audit
+
+**Project:** En Regla — SaaS invoice app with paywall and email ingestion
+**Role:** Backend developer + site reliability
+**Milestone:** Proved the subscription billing chain works against production and found the account was NOT live
+
+**What I did:**
+- Audited Stripe account mode with `stripe config --list`: "New business sandbox", `Live mode key: not available` → the integration is complete but cannot take real money until the owner activates the account
+- Diffed the registered webhook endpoint's `enabled_events` against the events the route handles and subscribed the missing ones (`invoice.payment_failed`, `customer.subscription.deleted`) via `stripe webhook_endpoints update`
+- Proved the production `STRIPE_WEBHOOK_SECRET` is correct without the dashboard: signed a synthetic event with the local secret (`t=<ts>,v1=HMAC-SHA256(secret,"<ts>.<body>")`) and POSTed it to the live webhook URL → `200 {"received":true}`
+- Confirmed delivery end-to-end with `stripe trigger` + `vercel logs` (three λ POSTs to `/api/webhooks/stripe`)
+- Wrote the owner-only "go live" checklist: activate account, swap env vars for `sk_live_` + live webhook secret, subscribe live events, run a real minimum purchase
+
+**Result:** Payment infrastructure verified working in test mode against production; the single remaining blocker is a human-only account activation step, now documented and unambiguous.
+
+**Skills demonstrated:** Stripe API/CLI, webhook signature verification, environment/secret auditing, production-readiness QA, cross-tool verification (Stripe CLI + Vercel logs).
+
+---
+
+## Case Study: Multi-Tenant Security Hardening (IDOR Hunt)
+
+**Project:** En Regla — multi-tenant invoice SaaS (Next.js 16, Turso/SQLite)
+**Role:** Full-stack + application security
+**Milestone:** Turned a "back button loops on /planes" report into a full app audit that fixed 8 cross-tenant and contract bugs
+
+**What I did:**
+- Diagnosed a non-deterministic back-nav heuristic (`history.length > 1` + never-cleared flag) and replaced it with an explicit sessionStorage stack of visited paths popped via `router.replace(target)` — deterministic, testable, and keeps the user's chosen origin-detection UX
+- Ran a two-pass audit (frontend + API) and fixed every confirmed HIGH:
+  - IDOR on id-routed child reads: `/api/facturas/[id]/adjunto` and `/api/facturas/[id]/etiquetas` returned data for any `factura_id` — now JOIN back to the tenant-scoped parent (`facturas ... negocio_slug = ?`)
+  - Cross-tenant duplicate pairs: `detectarDuplicados()` and the duplicados endpoint scoped the wrong side of the join — both sides now must belong to the caller's tenant
+  - Forgeable OAuth state: `cuenta_correo:email:negocioId` was unsigned, so anyone could complete their own Google flow stamped with a victim's business — added `src/lib/oauth-state.ts` (base64url JSON + HMAC-SHA256 + expiry, key derived from an existing prod secret so the paused deployment needs no new env var), and the callback now stores the Google-verified email instead of the client-supplied one
+  - Register lockout: users created with `negocio_id = null` fail every tenant gate — registration now assigns the single existing negocio at creation
+- Contract fixes: dashboard cards always showed 0 (consumed a stats shape that didn't match the API), admin "new user" select crashed (stored the whole response instead of the array), factura detail never rendered etiquetas (API never returned them), v1 pagination clamped, photo GET now requires a session, emails route returns 401 instead of a silent 200
+- Verified with `tsc --noEmit` + `next build` (both clean)
+
+**Result:** All known cross-tenant read/write vectors closed; OAuth account-linking is tamper-proof; dashboard and admin screens reflect real data. Signed-state pattern reusable for any third-party round-trip.
+
+**Skills demonstrated:** multi-tenant IDOR detection, threat modeling of child-table routes, HMAC state signing, frontend/API contract alignment, audit-driven regression fixing.
+
+---
+
 ## Portfolio Platforms
 
 - **GitHub**: Code + READMEs (show technical skill)
@@ -415,4 +456,4 @@ Verify what's actually failing and fix it.
 ---
 
 *Template by: Ian Maziel*
-*Last updated: 2026-08-12*
+*Last updated: 2026-08-13*

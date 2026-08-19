@@ -41,7 +41,15 @@ export async function GET(
       { "1": id }
     )
 
-    return NextResponse.json({ factura, lineas, adjuntos })
+    const etiquetas = await dbAll(
+      `SELECT e.* FROM etiquetas e
+       JOIN factura_etiqueta fe ON fe.etiqueta_id = e.id
+       WHERE fe.factura_id = ?
+       ORDER BY e.nombre`,
+      { "1": id }
+    )
+
+    return NextResponse.json({ factura, lineas, adjuntos, etiquetas })
   } catch (error) {
     console.error("Error fetching factura:", error)
     if (error instanceof Error && error.message.includes("No hay negocio")) {
