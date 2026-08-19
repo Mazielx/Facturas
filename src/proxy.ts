@@ -11,6 +11,7 @@ export const PUBLIC_API_PREFIXES = [
 ]
 
 export function isPublicPath(path: string): boolean {
+  if (path === "/robots.txt" || path === "/sitemap.xml" || path === "/og-image.svg" || path === "/manifest.json" || path === "/sw.js" || path.startsWith("/icon")) return true
   return PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"))
 }
 
@@ -42,5 +43,5 @@ export default function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.ico/).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.ico/|robots\\.txt|sitemap\\.xml|og-image\\.svg|manifest\\.json|sw\\.js|icon).*)"],
 }
