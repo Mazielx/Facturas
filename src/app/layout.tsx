@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Suspense } from "react"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
@@ -21,7 +21,6 @@ export const metadata: Metadata = {
   title: APP_NAME,
   description: APP_DESCRIPTION,
   manifest: "/manifest.json",
-  themeColor: "#10b981",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -60,6 +59,10 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
+}
+
+export const viewport: Viewport = {
+  themeColor: "#10b981",
 }
 
 const themeScript = `
