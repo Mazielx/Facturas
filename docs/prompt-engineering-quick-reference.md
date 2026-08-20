@@ -563,6 +563,12 @@ Run these before shipping a feature that real customers will touch:
 - "Check that account creation assigns ownership (negocio_id) at insert time; a user created with `negocio_id = null` fails every tenant gate forever"
 - "An audit script over `:id` routes + a signed-state OAuth helper is the difference between 'auth works' and 'data is actually isolated'"
 
+## SVG logo design prompts
+
+- "Redesign this SVG logo: remove background rectangles, use stroke-based letterforms for scalability, iterate on paths until the letter reads correctly at 16px and 512px"
+- "After a logo redesign, grep the entire codebase for every logo instance (inline SVGs, `<img>` tags, manifest.json, OG images) before shipping — miss one and the brand looks inconsistent"
+- "Regenerate PNGs from updated SVG via sharp script, then update all inline React SVG components with matching viewBox and strokeWidth ratios"
+
 ---
 
-*Last updated: 2026-08-13*
+*Last updated: 2026-08-19*

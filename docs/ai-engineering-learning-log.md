@@ -854,6 +854,40 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
+### Entry 027: Logo Redesign & Brand Refinement
+
+**Date:** 2026-08-19
+**Topic:** SVG logo design iteration — removing backgrounds, stroke-based letterforms, and consistent branding across all touchpoints
+**Time spent:** ~20 min
+
+**What I learned:**
+- SVG logos should use stroke-based letterforms for scalability and clean rendering at any size
+- Removing background rectangles from SVGs makes them truly transparent — works on any page background
+- When redesigning a logo, you must update every instance: favicon/icon SVG, PNGs (192, 512, apple-touch), OG image, and all inline SVGs in components
+- `scripts/generate-icons.js` with sharp makes PNG regeneration from SVG trivial
+- Inline SVGs in React need consistent proportions — the `viewBox` and `strokeWidth` must scale together
+- Background containers (`bg-zinc-900 dark:bg-zinc-100`) on logo `<span>` elements are unnecessary when the SVG itself is the brand mark — removing them gives a cleaner, more professional look
+- The 404 page also had the old logo — grepping for all logo instances across the codebase before a redesign prevents missed spots
+
+**The process:**
+1. Redesigned `icon.svg` — removed dark background rect, rebuilt G as stroke-based path with proper open-right arc and horizontal bar
+2. Regenerated PNGs via `node scripts/generate-icons.js`
+3. Updated inline SVGs in `page.tsx` header and footer
+4. Updated `og-image.svg` with the new G design
+5. Removed background containers from all 3 logo instances (header, footer, 404)
+6. Verified: tsc clean, 71/71 tests pass, deployed to production
+
+**Mistakes I made:**
+- First logo design looked like a "C with a dot" instead of a "G" — had to iterate on the stroke paths to get the open arc + horizontal bar right
+- Forgot to update the 404 page logo — caught it via grep before shipping
+
+**Key insight:**
+> "A logo redesign touches every file that references it. Use grep to find all instances before starting — SVGs, PNGs, inline components, OG images, manifest. Miss one and the brand looks inconsistent."
+
+**Confidence level:** Can design stroke-based SVG logos, iterate on them, and propagate changes across an entire Next.js app
+
+---
+
 ## Project Portfolio
 
 ### Project 1: Gobernanza (Learning Management System)
