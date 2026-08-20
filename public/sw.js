@@ -1,5 +1,5 @@
-const CACHE_NAME = "kapta-v2"
-const STATIC_CACHE = "kapta-static-v2"
+const CACHE_NAME = "grydex-v1"
+const STATIC_CACHE = "grydex-static-v1"
 
 const PRECACHE_URLS = [
   "/",

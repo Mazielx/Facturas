@@ -99,7 +99,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <noscript>
           <div style={{ padding: "2rem", textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
-            <h1>Kapta requiere JavaScript</h1>
+            <h1>Grydex requiere JavaScript</h1>
             <p>Por favor habilita JavaScript en tu navegador para usar la aplicacion.</p>
           </div>
         </noscript>

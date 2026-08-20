@@ -12,7 +12,7 @@
   <path d="M105 225h30M105 240h30M105 255h20M95 275h50a4 4 0 004-4v-30a4 4 0 00-4-4H95a4 4 0 00-4 4v30a4 4 0 004 4z" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
   
   <!-- Title -->
-  <text x="200" y="240" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="bold" fill="white">Kapta</text>
+  <text x="200" y="240" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="bold" fill="white">Grydex</text>
   
   <!-- Tagline -->
   <text x="80" y="340" font-family="system-ui, -apple-system, sans-serif" font-size="36" fill="#a1a1aa">Tus facturas, capturadas automaticamente</text>
