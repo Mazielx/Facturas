@@ -5,9 +5,12 @@ export default function NotFound() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center px-4">
       <div className="text-center max-w-md">
-        <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 mx-auto mb-6">
-          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6">
+          <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c2 0 3.85-.58 5.42-1.58" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round"/>
+            <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c1.28 0 2.47-.4 3.46-1.1" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round"/>
+            <path d="M13.2 12h6.5" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round"/>
+            <path d="M19.7 12v2.8" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round"/>
           </svg>
         </div>
         <h1 className="text-6xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">404</h1>

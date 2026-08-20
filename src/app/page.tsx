@@ -24,8 +24,8 @@ export default async function LandingPage() {
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-zinc-900 dark:bg-zinc-100 shrink-0">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+            <span className="flex items-center justify-center w-8 h-8 shrink-0">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c2 0 3.85-.58 5.42-1.58" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
                 <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c1.28 0 2.47-.4 3.46-1.1" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
                 <path d="M13.2 12h6.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
@@ -258,8 +258,8 @@ export default async function LandingPage() {
       <footer className="border-t border-zinc-200 dark:border-zinc-800">
         <div className="max-w-6xl mx-auto px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500 dark:text-zinc-400">
           <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 dark:bg-zinc-100">
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+            <span className="flex items-center justify-center w-6 h-6">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c2 0 3.85-.58 5.42-1.58" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
                 <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c1.28 0 2.47-.4 3.46-1.1" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
                 <path d="M13.2 12h6.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
