@@ -24,9 +24,10 @@ export default async function LandingPage() {
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shrink-0">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m-6 4h6m-6 4h4m-6 6h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-zinc-900 dark:bg-zinc-100 shrink-0">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                <path d="M15.5 6.5C13.5 4.5 10 4 7.5 5.5C5 7 3.5 10 3.5 13C3.5 16.5 5.5 19 8.5 20.5C11.5 22 14.5 21.5 17 20C18.5 19 19.5 17.5 20 15.5L16.5 14.8C16.2 15.8 15.5 16.5 14.5 17C13.5 17.5 12.5 17.5 11.5 17C10.5 16.2 10 15 10 13C10 11 10.5 9.8 11.5 9C12.5 8.2 13.5 8 15 8.5L15.5 6.5Z" fill="currentColor" className="text-emerald-500"/>
+                <rect x="14.5" y="11" width="4.5" height="2" rx="1" fill="currentColor" className="text-emerald-500"/>
               </svg>
             </span>
             <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 truncate">{APP_NAME}</span>
@@ -255,9 +256,10 @@ export default async function LandingPage() {
       <footer className="border-t border-zinc-200 dark:border-zinc-800">
         <div className="max-w-6xl mx-auto px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500 dark:text-zinc-400">
           <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900">
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m-6 4h6m-6 4h4m-6 6h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <span className="flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 dark:bg-zinc-100">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                <path d="M15.5 6.5C13.5 4.5 10 4 7.5 5.5C5 7 3.5 10 3.5 13C3.5 16.5 5.5 19 8.5 20.5C11.5 22 14.5 21.5 17 20C18.5 19 19.5 17.5 20 15.5L16.5 14.8C16.2 15.8 15.5 16.5 14.5 17C13.5 17.5 12.5 17.5 11.5 17C10.5 16.2 10 15 10 13C10 11 10.5 9.8 11.5 9C12.5 8.2 13.5 8 15 8.5L15.5 6.5Z" fill="currentColor" className="text-emerald-500"/>
+                <rect x="14.5" y="11" width="4.5" height="2" rx="1" fill="currentColor" className="text-emerald-500"/>
               </svg>
             </span>
             <span>&copy; 2026 {APP_NAME}. Todos los derechos reservados.</span>

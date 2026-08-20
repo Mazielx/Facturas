@@ -7,12 +7,14 @@
   </defs>
   <rect width="1200" height="630" fill="url(#bg)"/>
   
-  <!-- Icon -->
-  <rect x="80" y="200" width="80" height="80" rx="16" fill="#10b981"/>
-  <path d="M105 225h30M105 240h30M105 255h20M95 275h50a4 4 0 004-4v-30a4 4 0 00-4-4H95a4 4 0 00-4 4v30a4 4 0 004 4z" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- G Logo -->
+  <g transform="translate(60, 180) scale(0.6)">
+    <path d="M 155 6.5C 135 -11.5 100 -16 75 -0.5C 50 14 35 44 35 79C 35 139 70 189 125 214C 180 239 240 234 285 209C 315 192 335 164 345 134L 270 119C 263 139 250 154 230 164C 210 174 185 174 165 164C 140 149 125 124 125 79C 125 34 140 9 165 -6C 188 -21 215 -23 240 -11L 155 6.5 Z" fill="#10b981"/>
+    <rect x="150" y="54" width="95" height="24" rx="12" fill="#10b981"/>
+  </g>
   
   <!-- Title -->
-  <text x="200" y="240" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="bold" fill="white">Grydex</text>
+  <text x="220" y="260" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="bold" fill="white">Grydex</text>
   
   <!-- Tagline -->
   <text x="80" y="340" font-family="system-ui, -apple-system, sans-serif" font-size="36" fill="#a1a1aa">Tus facturas, capturadas automaticamente</text>

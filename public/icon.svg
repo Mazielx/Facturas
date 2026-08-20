@@ -1,11 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#18181b"/>
-      <stop offset="100%" style="stop-color:#27272a"/>
+      <stop offset="0%" style="stop-color:#09090b"/>
+      <stop offset="100%" style="stop-color:#18181b"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <text x="256" y="340" font-family="Arial,Helvetica,sans-serif" font-size="280" font-weight="bold" fill="#10b981" text-anchor="middle">K</text>
-  <rect x="80" y="380" width="352" height="8" rx="4" fill="#10b981" opacity="0.4"/>
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+  <!-- G letterform -->
+  <path d="M 330 155 C 285 120 225 115 175 140 C 125 165 95 215 95 270 C 95 330 130 380 185 405 C 240 430 300 425 345 400 C 375 383 395 355 405 325 L 330 310 C 323 330 310 345 290 355 C 270 365 245 365 225 355 C 200 340 185 315 185 270 C 185 225 200 200 225 185 C 248 170 275 168 300 180 L 330 155 Z" fill="#10b981"/>
+  <!-- Horizontal bar of G -->
+  <rect x="310" y="255" width="95" height="24" rx="12" fill="#10b981"/>
+  <!-- Accent line -->
+  <rect x="80" y="420" width="352" height="8" rx="4" fill="#10b981" opacity="0.3"/>
 </svg>
