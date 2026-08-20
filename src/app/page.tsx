@@ -26,8 +26,10 @@ export default async function LandingPage() {
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-zinc-900 dark:bg-zinc-100 shrink-0">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-                <path d="M15.5 6.5C13.5 4.5 10 4 7.5 5.5C5 7 3.5 10 3.5 13C3.5 16.5 5.5 19 8.5 20.5C11.5 22 14.5 21.5 17 20C18.5 19 19.5 17.5 20 15.5L16.5 14.8C16.2 15.8 15.5 16.5 14.5 17C13.5 17.5 12.5 17.5 11.5 17C10.5 16.2 10 15 10 13C10 11 10.5 9.8 11.5 9C12.5 8.2 13.5 8 15 8.5L15.5 6.5Z" fill="currentColor" className="text-emerald-500"/>
-                <rect x="14.5" y="11" width="4.5" height="2" rx="1" fill="currentColor" className="text-emerald-500"/>
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c2 0 3.85-.58 5.42-1.58" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
+                <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c1.28 0 2.47-.4 3.46-1.1" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
+                <path d="M13.2 12h6.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
+                <path d="M19.7 12v2.8" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
               </svg>
             </span>
             <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 truncate">{APP_NAME}</span>
@@ -258,8 +260,10 @@ export default async function LandingPage() {
           <div className="flex items-center gap-2">
             <span className="flex items-center justify-center w-6 h-6 rounded-md bg-zinc-900 dark:bg-zinc-100">
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-                <path d="M15.5 6.5C13.5 4.5 10 4 7.5 5.5C5 7 3.5 10 3.5 13C3.5 16.5 5.5 19 8.5 20.5C11.5 22 14.5 21.5 17 20C18.5 19 19.5 17.5 20 15.5L16.5 14.8C16.2 15.8 15.5 16.5 14.5 17C13.5 17.5 12.5 17.5 11.5 17C10.5 16.2 10 15 10 13C10 11 10.5 9.8 11.5 9C12.5 8.2 13.5 8 15 8.5L15.5 6.5Z" fill="currentColor" className="text-emerald-500"/>
-                <rect x="14.5" y="11" width="4.5" height="2" rx="1" fill="currentColor" className="text-emerald-500"/>
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c2 0 3.85-.58 5.42-1.58" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
+                <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c1.28 0 2.47-.4 3.46-1.1" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
+                <path d="M13.2 12h6.5" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
+                <path d="M19.7 12v2.8" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round"/>
               </svg>
             </span>
             <span>&copy; 2026 {APP_NAME}. Todos los derechos reservados.</span>
