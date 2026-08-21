@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { verifyPassword, createSession, getUsuarioByEmail, createUsuario as authCreateUsuario } from "@/lib/auth"
-import { getAllNegocios, createNegocio } from "@/db"
+import { verifyPassword, createSession, getUsuarioByEmail } from "@/lib/auth"
+import { getAllNegocios } from "@/db"
 import {
   checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
   recordFailedLogin, clearFailedLogins, isAccountLocked,
@@ -47,29 +47,14 @@ export async function POST(req: NextRequest) {
     let usuario = await getUsuarioByEmail(email)
 
     if (!usuario) {
-      const adminEmail = process.env.ADMIN_EMAIL
-      const adminPassword = process.env.ADMIN_PASSWORD
-      const adminNombre = process.env.ADMIN_NOMBRE || "Admin"
-
-      if (email === adminEmail && password === adminPassword) {
-        const allNegocios = await getAllNegocios()
-        let negocioId: number
-        if (allNegocios.length > 0) {
-          negocioId = allNegocios[0].id
-        } else {
-          const neg = await createNegocio("Mi Empresa", "mi-empresa", email)
-          negocioId = neg.id
-        }
-        usuario = await authCreateUsuario(email, password, adminNombre, "admin", negocioId) as any
-        console.log(`[login] Auto-created admin user: ${email}`)
-      } else {
-        recordFailedLogin(email)
-        await logSecurityEvent("login_failed", { email, ip, userAgent, metadata: { reason: "user_not_found" } })
-        return NextResponse.json(
-          { error: "Credenciales invalidas" },
-          { status: 401, headers: getRateLimitHeaders(rl) }
-        )
-      }
+      // V-14 FIX: Removed admin auto-provisioning from env vars.
+      // Admin must be created via CLI seed or /api/admin/usuarios.
+      recordFailedLogin(email)
+      await logSecurityEvent("login_failed", { email, ip, userAgent, metadata: { reason: "user_not_found" } })
+      return NextResponse.json(
+        { error: "Credenciales invalidas" },
+        { status: 401, headers: getRateLimitHeaders(rl) }
+      )
     }
 
     if (!usuario) {

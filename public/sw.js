@@ -1,17 +1,19 @@
-const CACHE_NAME = "grydex-v1"
-const STATIC_CACHE = "grydex-static-v1"
+const CACHE_NAME = "grydex-v2"
+const STATIC_CACHE = "grydex-static-v2"
 
+// V-26 FIX: Don't precache authenticated routes — they contain PII
 const PRECACHE_URLS = [
   "/",
   "/login",
-  "/dashboard",
-  "/facturas",
   "/planes",
   "/icon-192.png",
   "/icon-512.png",
   "/manifest.json",
   "/og-image.svg",
 ]
+
+// Routes that should never be cached (authenticated)
+const AUTH_ROUTES = ["/dashboard", "/facturas", "/empresa", "/configuracion", "/admin"]
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -37,12 +39,24 @@ self.addEventListener("activate", (event) => {
   )
 })
 
+// V-26 FIX: Clear all caches on logout message
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "LOGOUT") {
+    event.waitUntil(
+      caches.keys().then((keys) =>
+        Promise.all(keys.map((k) => caches.delete(k)))
+      )
+    )
+  }
+})
+
 self.addEventListener("fetch", (event) => {
   const { request } = event
   const url = new URL(request.url)
 
   if (request.method !== "GET") return
 
+  // Never cache API requests
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
       fetch(request).catch(() => {
@@ -52,6 +66,13 @@ self.addEventListener("fetch", (event) => {
         })
       })
     )
+    return
+  }
+
+  // V-26 FIX: Never cache authenticated page navigations
+  const isAuthRoute = AUTH_ROUTES.some((route) => url.pathname.startsWith(route))
+  if (isAuthRoute && request.mode === "navigate") {
+    event.respondWith(fetch(request))
     return
   }
 

@@ -199,6 +199,10 @@ export default function AdminPage() {
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" })
+    // V-26 FIX: Clear service worker caches on logout
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: "LOGOUT" })
+    }
     router.push("/login")
   }
 

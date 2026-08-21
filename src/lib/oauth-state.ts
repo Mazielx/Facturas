@@ -3,7 +3,11 @@ import crypto from "crypto"
 const STATE_TTL_MS = 15 * 60 * 1000
 
 function signingKey(): Buffer {
-  const secret = process.env.OAUTH_STATE_SECRET || process.env.GOOGLE_CLIENT_SECRET || "enregla-dev-oauth-state"
+  // V-16 FIX: Fail hard if no secret is configured. Never fall back to hardcoded string.
+  const secret = process.env.OAUTH_STATE_SECRET
+  if (!secret) {
+    throw new Error("OAUTH_STATE_SECRET env var is required. Generate with: openssl rand -hex 32")
+  }
   return crypto.createHash("sha256").update(secret).digest()
 }
 

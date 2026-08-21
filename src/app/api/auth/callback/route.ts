@@ -21,9 +21,23 @@ export async function GET(request: Request) {
     const verifiedState = verifyOAuthState(state)
 
     if (verifiedState) {
+      // V-15 FIX: Validate that the OAuth state belongs to the current user's negocio
+      const currentUser = await getCurrentUser()
+      if (!currentUser || !currentUser.negocio_id) {
+        return NextResponse.redirect(new URL("/?error=no_negocio", request.url))
+      }
+      if (verifiedState.negocioId !== currentUser.negocio_id) {
+        // State was forged or belongs to a different tenant
+        return NextResponse.redirect(new URL("/?error=invalid_state", request.url))
+      }
+
       if (tokens.access_token && tokens.refresh_token) {
         const googleInfo = await getGoogleUserInfo(tokens.access_token)
-        const email = googleInfo?.email || verifiedState.email
+        // V-15 FIX: Use Google's verified email, not the state-provided one
+        const email = googleInfo?.email
+        if (!email) {
+          return NextResponse.redirect(new URL("/empresa?error=no_email", request.url))
+        }
         const photoUrl = googleInfo?.picture || null
         const tokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null
 

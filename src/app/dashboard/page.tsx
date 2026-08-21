@@ -236,6 +236,10 @@ export default function Home() {
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" })
+    // V-26 FIX: Clear service worker caches on logout
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: "LOGOUT" })
+    }
     window.location.href = "/login"
   }
 

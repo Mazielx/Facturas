@@ -254,16 +254,22 @@ export function verifySessionFingerprint(
   userAgent: string
 ): boolean {
   if (!fingerprint) return true // Legacy sessions without fingerprint are allowed
-  const expected = createSessionFingerprint(ip, userAgent)
-  return crypto.timingSafeEqual(
-    Buffer.from(fingerprint, "hex"),
-    Buffer.from(expected, "hex")
-  )
+  try {
+    const expected = createSessionFingerprint(ip, userAgent)
+    const expectedBuf = Buffer.from(expected, "hex")
+    const receivedBuf = Buffer.from(fingerprint, "hex")
+    // V-27 FIX: Length check before timingSafeEqual to prevent throw
+    if (expectedBuf.length !== receivedBuf.length) return false
+    return crypto.timingSafeEqual(expectedBuf, receivedBuf)
+  } catch {
+    return false
+  }
 }
 
 export function extractClientIp(request: Request): string {
+  // V-21 FIX: On Vercel, x-real-ip is set by the platform proxy.
+  // Only trust platform-provided headers, not client-supplied X-Forwarded-For.
   return (
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||
     request.headers.get("cf-connecting-ip") ||
     "unknown"

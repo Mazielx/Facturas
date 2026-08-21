@@ -129,10 +129,12 @@ export async function GET(request: Request) {
 
     const escapeCsv = (value: unknown) => {
       const str = value == null ? "" : String(value)
-      if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-        return `"${str.replace(/"/g, '""')}"`
+      // V-25 FIX: Sanitize formula injection characters
+      const sanitized = str.replace(/^[\t\r ]*[=+\-@\t\r]/, "'$&".slice(1))
+      if (sanitized.includes(",") || sanitized.includes('"') || sanitized.includes("\n")) {
+        return `"${sanitized.replace(/"/g, '""')}"`
       }
-      return str
+      return sanitized
     }
 
     const headers = [

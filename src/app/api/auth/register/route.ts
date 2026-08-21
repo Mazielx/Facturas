@@ -73,23 +73,20 @@ export async function POST(req: NextRequest) {
     }
 
     const allNegocios = await getAllNegocios()
-    const negocioId = allNegocios.length === 1 ? allNegocios[0].id : undefined
 
-    const usuario = await createUsuario(cleanEmail, password, cleanNombre, "negocio", negocioId)
+    // V-13 FIX: Never auto-assign negocio on registration.
+    // Only the first user (creator) should be auto-assigned during bootstrap.
+    // Subsequent registrations require explicit invitation/assignment.
+    const usuario = await createUsuario(cleanEmail, password, cleanNombre, "negocio", undefined)
     const session = await createSession(usuario.id, fingerprint)
 
     await logSecurityEvent("register", { userId: usuario.id, email: cleanEmail, ip, userAgent })
     await logSecurityEvent("session_created", { userId: usuario.id, ip, userAgent })
 
-    let negocioSlug: string | null = null
-    if (allNegocios.length === 1) {
-      negocioSlug = allNegocios[0].slug
-    }
-
     const response = NextResponse.json({
       success: true,
-      redirectTo: "/dashboard",
-      negocioSlug,
+      redirectTo: allNegocios.length === 0 ? "/onboarding" : "/",
+      negocioSlug: null,
       user: {
         id: usuario.id,
         email: usuario.email,
@@ -107,16 +104,6 @@ export async function POST(req: NextRequest) {
       secure: true,
       httpOnly: true,
     })
-
-    if (negocioSlug) {
-      response.cookies.set("negocio_slug", negocioSlug, {
-        path: "/",
-        maxAge: 365 * 24 * 60 * 60,
-        sameSite: "lax",
-        secure: true,
-        httpOnly: true,
-      })
-    }
 
     return response
   } catch (error) {

@@ -1,16 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest"
 import { isAccesoCompleto, esEmailAdmin, planBloqueado, maxCuentasCorreo } from "@/lib/paywall"
 
-const originalAdminEmail = process.env.ADMIN_EMAIL
-
-afterEach(() => {
-  if (originalAdminEmail === undefined) {
-    delete process.env.ADMIN_EMAIL
-  } else {
-    process.env.ADMIN_EMAIL = originalAdminEmail
-  }
-})
-
 const futuro = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 const pasado = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -31,29 +21,26 @@ describe("isAccesoCompleto", () => {
     expect(isAccesoCompleto({ email: "user@empresa.com", role: "admin", planPagadoHasta: null })).toBe(true)
   })
 
-  it("bypasses the paywall for the configured admin email", () => {
+  // V-14: esEmailAdmin no longer grants paywall bypass — role-based only
+  it("does NOT bypass for admin email (role-based auth only)", () => {
     process.env.ADMIN_EMAIL = "ianmazielromo@gmail.com"
     expect(
       isAccesoCompleto({ email: "ian.maziel.romo@gmail.com", role: "negocio", planPagadoHasta: null })
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it("does not bypass for other emails", () => {
     process.env.ADMIN_EMAIL = "ianmazielromo@gmail.com"
     expect(isAccesoCompleto({ email: "otro@gmail.com", role: "negocio", planPagadoHasta: null })).toBe(false)
   })
-
-  it("does not bypass when ADMIN_EMAIL is unset", () => {
-    delete process.env.ADMIN_EMAIL
-    expect(isAccesoCompleto({ email: "ian.maziel.romo@gmail.com", role: "negocio", planPagadoHasta: null })).toBe(false)
-  })
 })
 
 describe("esEmailAdmin", () => {
-  it("matches gmail addresses ignoring dots", () => {
+  // V-14: Always returns false now — deprecated
+  it("always returns false (deprecated)", () => {
     process.env.ADMIN_EMAIL = "ianmazielromo@gmail.com"
-    expect(esEmailAdmin("ian.maziel.romo@gmail.com")).toBe(true)
-    expect(esEmailAdmin("IANMAZIELROMO@gmail.com")).toBe(true)
+    expect(esEmailAdmin("ian.maziel.romo@gmail.com")).toBe(false)
+    expect(esEmailAdmin("IANMAZIELROMO@gmail.com")).toBe(false)
     expect(esEmailAdmin("otro@gmail.com")).toBe(false)
   })
 })
@@ -75,9 +62,10 @@ describe("maxCuentasCorreo", () => {
     expect(maxCuentasCorreo({ role: "admin", email: "u@empresa.com" }, "basico")).toBe(4)
   })
 
-  it("gives the owner email the empresa limit regardless of plan", () => {
+  // V-14: Email-based admin no longer gets elevated limits
+  it("does NOT give admin email elevated limits (role-based only)", () => {
     process.env.ADMIN_EMAIL = "ianmazielromo@gmail.com"
-    expect(maxCuentasCorreo({ role: "negocio", email: "ian.maziel.romo@gmail.com" }, "basico")).toBe(4)
+    expect(maxCuentasCorreo({ role: "negocio", email: "ian.maziel.romo@gmail.com" }, "basico")).toBe(1)
     expect(maxCuentasCorreo({ role: "negocio", email: "otro@gmail.com" }, "basico")).toBe(1)
   })
 })

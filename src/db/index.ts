@@ -134,9 +134,31 @@ export async function updateNegocio(id: number, data: { nombre?: string; email?:
 
 export async function deleteNegocio(id: number): Promise<void> {
   await ensureSchema()
-  await dbRun("DELETE FROM facturas WHERE negocio_slug IN (SELECT slug FROM negocios WHERE id = ?)", { "1": id })
-  await dbRun("DELETE FROM lineas_factura WHERE factura_id IN (SELECT id FROM facturas WHERE negocio_slug IN (SELECT slug FROM negocios WHERE id = ?))", { "1": id })
-  await dbRun("DELETE FROM adjuntos WHERE factura_id IN (SELECT id FROM facturas WHERE negocio_slug IN (SELECT slug FROM negocios WHERE id = ?))", { "1": id })
+  // V-19 FIX: Delete children BEFORE parents. Use a transaction.
+  const slug = await dbGet<{ slug: string }>("SELECT slug FROM negocios WHERE id = ?", { "1": id })
+  if (!slug) return
+
+  // Get all factura IDs for this negocio first
+  const facturaIds = await dbAll<{ id: number }>(
+    "SELECT id FROM facturas WHERE negocio_slug = ?",
+    { "1": slug.slug }
+  )
+  const ids = facturaIds.map(f => f.id)
+
+  if (ids.length > 0) {
+    const placeholders = ids.map(() => "?").join(",")
+    const args: Record<string, unknown> = {}
+    ids.forEach((fid, i) => { args[String(i + 1)] = fid })
+
+    await dbRun(`DELETE FROM adjuntos WHERE factura_id IN (${placeholders})`, args)
+    await dbRun(`DELETE FROM lineas_factura WHERE factura_id IN (${placeholders})`, args)
+    await dbRun(`DELETE FROM duplicados_potenciales WHERE factura_id IN (${placeholders})`, args)
+    await dbRun(`DELETE FROM factura_etiqueta WHERE factura_id IN (${placeholders})`, args)
+    await dbRun(`DELETE FROM facturas WHERE negocio_slug = ?`, { "1": slug.slug })
+  }
+
+  await dbRun("DELETE FROM cuentas_correo WHERE negocio_id = ?", { "1": id })
+  await dbRun("DELETE FROM api_keys WHERE negocio_id = ?", { "1": id })
   await dbRun("DELETE FROM negocios WHERE id = ?", { "1": id })
 }
 

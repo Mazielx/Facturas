@@ -17,6 +17,12 @@ export async function POST() {
         const rows = await dbAll(`SELECT * FROM ${table}`)
         if (table === "usuarios") {
           backup[table] = rows.map(({ password_hash, ...rest }) => rest)
+        } else if (table === "cuentas_correo") {
+          // V-17 FIX: Strip OAuth tokens from backup
+          backup[table] = rows.map(({ access_token, refresh_token, ...rest }) => rest)
+        } else if (table === "api_keys") {
+          // V-17 FIX: Strip API key hashes from backup
+          backup[table] = rows.map(({ key_hash, ...rest }) => rest)
         } else {
           backup[table] = rows
         }

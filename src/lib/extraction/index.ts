@@ -72,9 +72,10 @@ export async function processAttachment(
 ): Promise<ExtractionResult> {
   const contentHash = crypto.createHash("sha256").update(content).digest("hex")
 
+  // V-18 FIX: Scope dedup per tenant to prevent cross-tenant hash collisions
   const existing = await dbGet<{ id: number }>(
-    "SELECT id FROM facturas WHERE adjunto_hash = ?",
-    { "1": contentHash }
+    "SELECT id FROM facturas WHERE adjunto_hash = ? AND negocio_slug = ?",
+    { "1": contentHash, "2": negocioSlug || "default" }
   )
   if (existing) {
     return { success: true, facturaId: existing.id, error: "Ya procesado previamente" }
