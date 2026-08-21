@@ -271,7 +271,7 @@ export default async function LandingPage() {
           <nav aria-label="Legal" className="flex items-center gap-6">
             <Link href="/planes" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Precios</Link>
             <Link href="/login" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Iniciar sesion</Link>
-            <a href="mailto:hola@kapta.app" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Contacto</a>
+            <a href="mailto:hola@grydex.app" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Contacto</a>
           </nav>
         </div>
       </footer>

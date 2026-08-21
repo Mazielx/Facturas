@@ -20,6 +20,11 @@ export async function GET(
     return NextResponse.json({ error: "Invalid filename" }, { status: 400 })
   }
 
+  const fileUserId = filename.split("-")[0]
+  if (String(user.id) !== fileUserId && user.role !== "admin") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+  }
+
   const filepath = path.join(UPLOAD_DIR, filename)
 
   if (!fs.existsSync(filepath)) {

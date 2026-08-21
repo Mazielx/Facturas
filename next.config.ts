@@ -29,6 +29,20 @@ const securityHeaders = [
     key: "X-XSS-Protection",
     value: "1; mode=block",
   },
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https://lh3.googleusercontent.com https://*.googleusercontent.com",
+      "font-src 'self'",
+      "connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://gmail.googleapis.com",
+      "frame-ancestors 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "),
+  },
 ]
 
 const nextConfig: NextConfig = {

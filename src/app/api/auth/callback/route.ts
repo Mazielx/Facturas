@@ -57,7 +57,7 @@ export async function GET(request: Request) {
       maxAge: 60 * 60 * 24 * 7,
       sameSite: "lax",
       secure: true,
-      httpOnly: false,
+      httpOnly: true,
     })
 
     return response

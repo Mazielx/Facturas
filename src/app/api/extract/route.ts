@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { getOAuth2ClientWithTokens, listEmailsWithAttachments, getAuthFromCuentaCorreo } from "@/lib/gmail"
+import { listEmailsWithAttachments, getAuthFromCuentaCorreo } from "@/lib/gmail"
 import { processAttachment } from "@/lib/extraction"
 import { requireActiveTenant } from "@/lib/tenant"
 import { notifyExtractionErrors } from "@/lib/notifications"
 import { getCuentasCorreo, updateCuentaCorreoTokens } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
-import type { Credentials } from "google-auth-library"
 import { google } from "googleapis"
 
 export async function POST() {
@@ -27,19 +25,17 @@ export async function POST() {
   const slug = tenant.slug
   const negocioId = tenant.negocio.id
   const cuentas = await getCuentasCorreo(negocioId)
-  const cookieStore = await cookies()
-  const tokensCookie = cookieStore.get("gmail_tokens")
 
-  if (cuentas.length === 0 && !tokensCookie) {
+  if (cuentas.length === 0) {
     return NextResponse.json({ error: "No hay cuentas de correo conectadas" }, { status: 401 })
   }
 
   const allProcessed: Array<{ emailId: string; filename: string; facturaId: number; cuenta: string }> = []
   const allErrors: Array<{ emailId: string; filename: string; error: string; cuenta: string }> = []
 
-  console.log("EXTRACT_START:", { slug, cuentaCount: cuentas.length, hasCookie: !!tokensCookie })
+  console.log("EXTRACT_START:", { slug, cuentaCount: cuentas.length })
 
-  async function processWithAuth(auth: ReturnType<typeof getOAuth2ClientWithTokens>, cuentaEmail: string) {
+  async function processWithAuth(auth: ReturnType<typeof getAuthFromCuentaCorreo>, cuentaEmail: string) {
     let emailList
     try {
       emailList = await listEmailsWithAttachments(auth, 50)
@@ -125,20 +121,6 @@ export async function POST() {
           credentials.refresh_token,
           new Date(credentials.expiry_date).toISOString()
         )
-      }
-    }
-
-    if (cuentas.length === 0 && tokensCookie) {
-      console.log("EXTRACT: Using gmail_tokens cookie, raw length:", tokensCookie.value.length)
-      try {
-        const decoded = decodeURIComponent(tokensCookie.value)
-        const tokens: Credentials = JSON.parse(decoded)
-        console.log("EXTRACT: Token keys:", Object.keys(tokens))
-        const auth = getOAuth2ClientWithTokens(tokens)
-        await processWithAuth(auth, "cuenta_principal")
-      } catch (tokenErr) {
-        console.error("EXTRACT: Token parse error:", tokenErr instanceof Error ? tokenErr.message : tokenErr)
-        allErrors.push({ emailId: "", filename: "", error: "Error parseando tokens de Gmail: " + (tokenErr instanceof Error ? tokenErr.message : "error desconocido"), cuenta: "cuenta_principal" })
       }
     }
 

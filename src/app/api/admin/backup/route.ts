@@ -14,7 +14,12 @@ export async function POST() {
 
     for (const table of tables) {
       try {
-        backup[table] = await dbAll(`SELECT * FROM ${table}`)
+        const rows = await dbAll(`SELECT * FROM ${table}`)
+        if (table === "usuarios") {
+          backup[table] = rows.map(({ password_hash, ...rest }) => rest)
+        } else {
+          backup[table] = rows
+        }
       } catch {
         backup[table] = []
       }

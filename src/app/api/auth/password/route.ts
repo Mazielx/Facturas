@@ -16,8 +16,8 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Contrasena actual y nueva contrasena son requeridas" }, { status: 400 })
     }
 
-    if (newPassword.length < 6) {
-      return NextResponse.json({ error: "La nueva contrasena debe tener al menos 6 caracteres" }, { status: 400 })
+    if (newPassword.length < 8) {
+      return NextResponse.json({ error: "La nueva contrasena debe tener al menos 8 caracteres" }, { status: 400 })
     }
 
     const usuario = await dbGet<{ password_hash: string }>("SELECT password_hash FROM usuarios WHERE id = ?", { "1": user.id })
@@ -30,7 +30,11 @@ export async function PUT(request: Request) {
     const newHash = await hashPassword(newPassword)
     await dbRun("UPDATE usuarios SET password_hash = ?, updated_at = datetime('now') WHERE id = ?", { "1": newHash, "2": user.id })
 
-    return NextResponse.json({ success: true })
+    await dbRun("DELETE FROM sesiones WHERE usuario_id = ?", { "1": user.id })
+
+    const response = NextResponse.json({ success: true })
+    response.cookies.set("session_id", "", { path: "/", maxAge: 0 })
+    return response
   } catch (error) {
     console.error("Error changing password:", error)
     return NextResponse.json({ error: "Error al cambiar contrasena" }, { status: 500 })

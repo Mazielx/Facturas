@@ -71,10 +71,9 @@ export async function POST(req: NextRequest) {
       negocioSlug = allNegocios[0].slug
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       redirectTo: "/dashboard",
-      sessionId: session.id,
       negocioSlug,
       user: {
         id: usuario.id,
@@ -84,6 +83,27 @@ export async function POST(req: NextRequest) {
         negocio_id: usuario.negocio_id,
       },
     })
+
+    const maxAge = 30 * 24 * 60 * 60
+    response.cookies.set("session_id", session.id, {
+      path: "/",
+      maxAge,
+      sameSite: "lax",
+      secure: true,
+      httpOnly: true,
+    })
+
+    if (negocioSlug) {
+      response.cookies.set("negocio_slug", negocioSlug, {
+        path: "/",
+        maxAge: 365 * 24 * 60 * 60,
+        sameSite: "lax",
+        secure: true,
+        httpOnly: true,
+      })
+    }
+
+    return response
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json(

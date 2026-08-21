@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { deleteClientCookie } from "@/lib/cookie-utils"
 import ThemeToggle from "../components/theme-toggle"
 import NegocioSelector from "../negocio-selector"
 import PlanModal from "../components/plan-modal"
@@ -112,7 +111,6 @@ export default function Home() {
         if (data.negocios && data.negocios.length === 1) {
           const only = data.negocios[0] as NegocioInfo
           await fetch(`/api/negocios/${only.slug}/select`, { method: "POST" })
-          document.cookie = `negocio_slug=${only.slug}; path=/; max-age=${365 * 24 * 60 * 60}`
           if (!cancelled) setNegocio(only)
           if (data.user) setUsuario(data.user)
           return
@@ -199,7 +197,6 @@ export default function Home() {
       }
 
       if (res.status === 401) {
-        deleteClientCookie("gmail_tokens")
         setExtractResult("Gmail no conectado o tokens expirados. Redirigiendo para autorizar...")
         setTimeout(() => { window.location.href = "/api/auth" }, 1500)
         return
@@ -239,8 +236,6 @@ export default function Home() {
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" })
-    deleteClientCookie("session_id")
-    deleteClientCookie("negocio_slug")
     window.location.href = "/login"
   }
 

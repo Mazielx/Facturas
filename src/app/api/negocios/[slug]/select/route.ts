@@ -14,12 +14,22 @@ export async function POST(_request: Request, { params }: { params: Promise<{ sl
     return NextResponse.json({ error: "No autorizado" }, { status: 403 })
   }
 
-  return NextResponse.json({ ok: true, slug })
+  const response = NextResponse.json({ ok: true, slug })
+  response.cookies.set("negocio_slug", slug, {
+    path: "/",
+    maxAge: 365 * 24 * 60 * 60,
+    sameSite: "lax",
+    secure: true,
+    httpOnly: true,
+  })
+  return response
 }
 
 export async function DELETE() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
-  return NextResponse.json({ ok: true })
+  const response = NextResponse.json({ ok: true })
+  response.cookies.set("negocio_slug", "", { path: "/", maxAge: 0 })
+  return response
 }

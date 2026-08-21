@@ -11,7 +11,13 @@ export async function POST() {
       await deleteSession(sessionId)
     }
 
-    return NextResponse.json({ success: true })
+    const response = NextResponse.json({ success: true })
+
+    response.cookies.set("session_id", "", { path: "/", maxAge: 0 })
+    response.cookies.set("negocio_slug", "", { path: "/", maxAge: 0 })
+    response.cookies.set("gmail_tokens", "", { path: "/", maxAge: 0 })
+
+    return response
   } catch (error) {
     console.error("Logout error:", error)
     return NextResponse.json(

@@ -151,9 +151,12 @@ export async function initializeSchema(): Promise<void> {
     )`,
     `CREATE TABLE IF NOT EXISTS etiquetas (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL UNIQUE,
+      negocio_id INTEGER NOT NULL,
+      nombre TEXT NOT NULL,
       color TEXT DEFAULT '#6b7280',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(nombre, negocio_id),
+      FOREIGN KEY (negocio_id) REFERENCES negocios(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS factura_etiqueta (
       factura_id INTEGER NOT NULL,
@@ -204,5 +207,11 @@ export async function initializeSchema(): Promise<void> {
   }
   if (!negociosColumns.some((c) => c.name === "stripe_subscription_id")) {
     await dbExec("ALTER TABLE negocios ADD COLUMN stripe_subscription_id TEXT")
+  }
+
+  const etiquetasColumns = await dbAll<{ name: string }>("PRAGMA table_info(etiquetas)")
+  if (!etiquetasColumns.some((c) => c.name === "negocio_id")) {
+    await dbExec("ALTER TABLE etiquetas ADD COLUMN negocio_id INTEGER DEFAULT 1")
+    await dbExec("UPDATE etiquetas SET negocio_id = 1 WHERE negocio_id IS NULL")
   }
 }

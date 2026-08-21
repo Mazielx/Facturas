@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { deleteClientCookie } from "@/lib/cookie-utils"
 import ThemeToggle from "../components/theme-toggle"
 import BackLink from "../components/back-link"
 import { APP_NAME } from "@/lib/brand"
@@ -24,9 +23,8 @@ export default function ConfiguracionPage() {
     window.location.href = "/api/auth"
   }
 
-  const handleDisconnectGmail = async () => {
-    deleteClientCookie("gmail_tokens")
-    setGmailConnected(false)
+  const handleDisconnectGmail = () => {
+    window.location.href = "/empresa"
   }
 
   return (

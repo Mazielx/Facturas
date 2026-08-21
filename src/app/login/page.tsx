@@ -2,7 +2,6 @@
 
 import { Suspense, useState, useEffect } from "react"
 import Link from "next/link"
-import { setClientCookie } from "@/lib/cookie-utils"
 import ThemeToggle from "../components/theme-toggle"
 import BackLink from "../components/back-link"
 import { useFromParam } from "@/lib/back-nav"
@@ -52,11 +51,6 @@ function LoginPageContent() {
       if (!res.ok) {
         setError(data.error || "Error al procesar")
         return
-      }
-
-      setClientCookie("session_id", data.sessionId, 30 * 24 * 60 * 60)
-      if (data.negocioSlug) {
-        setClientCookie("negocio_slug", data.negocioSlug, 365 * 24 * 60 * 60)
       }
 
       const defaultTarget = data.redirectTo || "/dashboard"

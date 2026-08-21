@@ -12,7 +12,8 @@ export async function GET() {
       return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
     }
     const etiquetas = await dbAll(
-      "SELECT * FROM etiquetas ORDER BY nombre"
+      "SELECT * FROM etiquetas WHERE negocio_id = ? ORDER BY nombre",
+      { "1": tenant.negocio.id }
     )
     return NextResponse.json(etiquetas)
   } catch (error) {
@@ -39,16 +40,16 @@ export async function POST(req: NextRequest) {
     }
 
     const existing = await dbGet(
-      "SELECT id FROM etiquetas WHERE nombre = ?",
-      { "1": nombre }
+      "SELECT id FROM etiquetas WHERE nombre = ? AND negocio_id = ?",
+      { "1": nombre, "2": tenant.negocio.id }
     )
     if (existing) {
       return NextResponse.json({ error: "La etiqueta ya existe" }, { status: 409 })
     }
 
     const result = await dbRun(
-      "INSERT INTO etiquetas (nombre, color) VALUES (?, ?)",
-      { "1": nombre, "2": color || "#6b7280" }
+      "INSERT INTO etiquetas (nombre, color, negocio_id) VALUES (?, ?, ?)",
+      { "1": nombre, "2": color || "#6b7280", "3": tenant.negocio.id }
     )
 
     return NextResponse.json({
@@ -79,9 +80,17 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID requerido" }, { status: 400 })
     }
 
+    const existing = await dbGet(
+      "SELECT id FROM etiquetas WHERE id = ? AND negocio_id = ?",
+      { "1": Number(id), "2": tenant.negocio.id }
+    )
+    if (!existing) {
+      return NextResponse.json({ error: "Etiqueta no encontrada" }, { status: 404 })
+    }
+
     await dbRun(
-      "DELETE FROM etiquetas WHERE id = ?",
-      { "1": Number(id) }
+      "DELETE FROM etiquetas WHERE id = ? AND negocio_id = ?",
+      { "1": Number(id), "2": tenant.negocio.id }
     )
     return NextResponse.json({ success: true })
   } catch (error) {

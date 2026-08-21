@@ -44,7 +44,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ sl
   const negocio = await getNegocioBySlug(slug)
   if (!negocio) return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
   const body = await request.json()
-  const result = await updateNegocio(negocio.id, body)
+
+  const allowed: Record<string, unknown> = {}
+  if (body.nombre !== undefined) allowed.nombre = body.nombre
+  if (body.email !== undefined) allowed.email = body.email
+  if (body.moneda_default !== undefined) allowed.moneda_default = body.moneda_default
+
+  if (Object.keys(allowed).length === 0) {
+    return NextResponse.json({ error: "No hay campos para actualizar" }, { status: 400 })
+  }
+
+  const result = await updateNegocio(negocio.id, allowed)
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 400 })
   }
