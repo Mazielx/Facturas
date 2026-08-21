@@ -975,6 +975,35 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
+### Entry 030: Pentest Phases 5-8 — Business Logic, Infrastructure, Client-Side, API Fuzzing
+
+**Date:** 2026-08-21
+**Topic:** Deep pentest across 4 attack surfaces — business logic flaws, infrastructure weaknesses, client-side vulnerabilities, and API-level attacks. 19 unique vulnerabilities found and fixed.
+**Time spent:** ~2 hours
+
+**What I learned:**
+- **Cross-tenant auto-join is a critical architectural flaw.** When you auto-assign every new user to the only existing tenant, you've created an open membership model. Any signup gets full access to the victim's invoices, Gmail connections, and paid plan. The fix: registration should never auto-assign tenants — require explicit invitation.
+- **Email-based admin identification is dangerous.** Gmail dot-stripping (`ian.maziel.romo@gmail.com` → `ianmazielromo@gmail.com`) meant anyone who registered the dot-variant could claim admin identity. Combined with `esEmailAdmin()` granting paywall bypass, this created permanent revenue bypass. The lesson: auth/entitlements must be role-based (DB), never email-matched against env vars.
+- **OAuth state tokens prove integrity, not entitlement.** A signed state with `negocioId` proves the state wasn't tampered with — but doesn't prove the user making the callback actually owns that negocio. Always validate that `state.negocioId === session.user.negocio_id` in the callback.
+- **Hardcoded fallback secrets are ticking time bombs.** `OAUTH_STATE_SECRET || GOOGLE_CLIENT_SECRET || "hardcoded-dev-string"` means any environment missing the var silently degrades to a public signing key. Fail hard at startup instead.
+- **Backup endpoints are credential exfiltration vectors.** `SELECT * FROM cuentas_correo` in a backup downloads every user's Gmail OAuth tokens. Always strip sensitive columns.
+- **Cross-tenant data dedup must be scoped.** `WHERE hash = ?` without `AND tenant = ?` leaks document existence across tenants and silently skips legitimate invoices.
+- **Delete children before parents.** SQLite doesn't enforce FK cascades by default — deleting parent rows first orphans all children.
+- **X-Forwarded-For is client-controlled.** On Vercel, only `x-real-ip` is trustworthy. IP-based rate limiting keyed on spoofable headers is theater.
+- **CSV/formula injection is real.** A cell starting with `=WEBSERVICE(...)` executes when opened in Excel. Sanitize at export time.
+- **Service workers cache authenticated pages forever.** Logout must send a message to clear caches, or the next visitor on a shared machine gets the previous user's data.
+
+**Mistakes I made:**
+- Initially forgot that removing `esEmailAdmin` would break 3 paywall tests — had to update test expectations to match the new role-based-only behavior
+- The subagent tasks returned empty on first call — had to resume them to get actual findings
+
+**Key insight:**
+> "The most dangerous vulnerabilities aren't technical — they're architectural. Cross-tenant auto-join, email-based identity squatting, and OAuth state that proves integrity but not entitlement are design flaws that no amount of input validation can fix. You have to rethink the trust model."
+
+**Confidence level:** Can perform deep pentest across business logic, infrastructure, client-side, and API surfaces. Can identify architectural trust model flaws, not just technical injection bugs. Can systematically fix vulnerabilities across 4 attack vectors in a single session.
+
+---
+
 ## Project Portfolio
 
 ### Project 1: Gobernanza (Learning Management System)
