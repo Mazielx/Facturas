@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth"
+import { getCurrentUser, verifyPassword } from "@/lib/auth"
 import { dbGet, dbRun } from "@/db/client"
 
 const EMAIL_COOLDOWN_MONTHS = 6
@@ -12,13 +12,13 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json()
-    const { nombre, email, telefono } = body
+    const { nombre, email, telefono, current_password } = body
 
     if (!nombre) {
       return NextResponse.json({ error: "Nombre es requerido" }, { status: 400 })
     }
 
-    const current = await dbGet<{ email: string; email_changed_at: string | null }>("SELECT email, email_changed_at FROM usuarios WHERE id = ?", { "1": user.id })
+    const current = await dbGet<{ email: string; email_changed_at: string | null; password_hash: string }>("SELECT email, email_changed_at, password_hash FROM usuarios WHERE id = ?", { "1": user.id })
 
     if (!current) {
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
@@ -28,6 +28,21 @@ export async function PUT(request: Request) {
     let emailChanged = false
 
     if (email && email !== current.email) {
+      // V-31 FIX: Require current password for email change to prevent account takeover
+      if (!current_password) {
+        return NextResponse.json(
+          { error: "Debes ingresar tu contrasena actual para cambiar el email" },
+          { status: 400 }
+        )
+      }
+      const validPassword = await verifyPassword(current_password, current.password_hash)
+      if (!validPassword) {
+        return NextResponse.json(
+          { error: "La contrasena actual es incorrecta" },
+          { status: 401 }
+        )
+      }
+
       if (current.email_changed_at) {
         const changedAt = new Date(current.email_changed_at)
         const now = new Date()

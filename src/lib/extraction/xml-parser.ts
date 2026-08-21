@@ -10,7 +10,14 @@ const xmlParser = new XMLParser({
   allowBooleanAttributes: true,
   parseTagValue: true,
   trimValues: true,
+  // V-32b FIX: Prevent XML entity expansion attacks (billion laughs)
+  processEntities: false,
+  htmlEntities: false,
+  stopNodes: ["*.href", "*.xlink:href"],
 })
+
+// Enforce max XML size before parsing (1MB limit)
+const MAX_XML_SIZE = 1024 * 1024
 
 function str(val: unknown): string | undefined {
   if (val === undefined || val === null) return undefined

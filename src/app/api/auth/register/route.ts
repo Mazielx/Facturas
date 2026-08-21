@@ -15,16 +15,6 @@ export async function POST(req: NextRequest) {
     const userAgent = extractUserAgent(req)
     const fingerprint = createSessionFingerprint(ip, userAgent)
 
-    // Rate limit
-    const rl = checkRateLimit(ip, RATE_LIMITS.register)
-    if (!rl.allowed) {
-      await logSecurityEvent("rate_limited", { ip, userAgent, metadata: { endpoint: "register" } })
-      return NextResponse.json(
-        { error: "Demasiados registros desde esta IP. Intenta de nuevo mas tarde." },
-        { status: 429, headers: getRateLimitHeaders(rl) }
-      )
-    }
-
     const body = await req.json()
     const { email, password, nombre } = body
 
@@ -44,6 +34,16 @@ export async function POST(req: NextRequest) {
     const cleanNombre = sanitizeString(nombre, 100)
     if (cleanNombre.length < 1) {
       return NextResponse.json({ error: "Nombre requerido" }, { status: 400 })
+    }
+
+    // Rate limit by IP + email
+    const rl = checkRateLimit(`${ip}:${cleanEmail}`, RATE_LIMITS.register)
+    if (!rl.allowed) {
+      await logSecurityEvent("rate_limited", { ip, userAgent, metadata: { endpoint: "register" } })
+      return NextResponse.json(
+        { error: "Demasiados registros. Intenta de nuevo mas tarde." },
+        { status: 429, headers: getRateLimitHeaders(rl) }
+      )
     }
 
     // Password strength validation

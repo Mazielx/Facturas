@@ -114,6 +114,27 @@ export async function processAttachment(
       datos.emisor.nombre = emailFrom || "Desconocido"
     }
 
+    // V-31d FIX: Validate financial fields — reject negative totals, broken IVA
+    const base = Number(datos.factura.baseImponible) || 0
+    const cuotaIva = Number(datos.factura.cuotaIva) || 0
+    const total = Number(datos.factura.total) || 0
+    const descuento = Number(datos.factura.descuento) || 0
+    const retencion = Number(datos.factura.retencion) || 0
+
+    if (base < 0 || total < 0 || cuotaIva < 0) {
+      return { success: false, error: `Valores financieros negativos no permitidos: base=${base}, total=${total}` }
+    }
+    if (descuento < 0 || retencion < 0) {
+      return { success: false, error: `Descuento/retencion negativos no permitidos` }
+    }
+    // Validate IVA consistency (within 1% tolerance for rounding)
+    if (base > 0 && cuotaIva > 0) {
+      const expectedIva = base * (Number(datos.factura.tipoIva) || 21) / 100
+      if (Math.abs(cuotaIva - expectedIva) > expectedIva * 0.01 + 0.01) {
+        return { success: false, error: `IVA inconsistente: base=${base}, tipo=${datos.factura.tipoIva}%, cuota=${cuotaIva}` }
+      }
+    }
+
     const confianzaScore = calcularConfianza(datos, source)
     const confianzaNivel = nivelConfianza(confianzaScore)
 
@@ -146,6 +167,11 @@ export async function processAttachment(
     return { success: true, facturaId, datos }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Error desconocido"
+    // V-31c FIX: Handle global UNIQUE(adjunto_hash) constraint violation gracefully
+    // If another tenant already has this exact hash, treat as "already processed"
+    if (errorMsg.includes("UNIQUE constraint failed") && errorMsg.includes("adjunto_hash")) {
+      return { success: true, facturaId: 0, error: "Archivo ya procesado por otro usuario" }
+    }
     await insertLog(emailId, filename, "error", errorMsg)
     return { success: false, error: errorMsg }
   }

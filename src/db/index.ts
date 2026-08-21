@@ -6,6 +6,8 @@ let schemaInitialized = false
 export async function ensureSchema(): Promise<void> {
   if (!schemaInitialized) {
     await initializeSchema()
+    // V-52: Clean up expired sessions on startup
+    await dbRun("DELETE FROM sesiones WHERE expires_at < datetime('now')").catch(() => {})
     schemaInitialized = true
   }
 }

@@ -18,13 +18,12 @@ export async function GET(
     const facturaId = Number(id)
 
     const duplicados = await dbAll(
-      `SELECT dp.*, f.numero_factura, f.emisor_nombre, f.total, f.fecha_emision
+      `SELECT dp.score, dp.razon, f.numero_factura, f.emisor_nombre, f.total, f.fecha_emision
        FROM duplicados_potenciales dp
        JOIN facturas fo ON fo.id = dp.factura_id
-       JOIN facturas f ON f.id = dp.duplicada_de_id
-       WHERE dp.factura_id = ? AND fo.negocio_slug = ?
-       ORDER BY dp.score DESC`,
-      { "1": facturaId, "2": tenant.slug }
+       JOIN facturas f ON f.id = dp.duplicada_de_id AND f.negocio_slug = ?
+       WHERE dp.factura_id = ? AND fo.negocio_slug = ?`,
+      { "1": tenant.slug, "2": facturaId, "3": tenant.slug }
     )
 
     return NextResponse.json(duplicados)

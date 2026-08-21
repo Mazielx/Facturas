@@ -67,6 +67,15 @@ export async function POST(
       return NextResponse.json({ error: "Factura no encontrada" }, { status: 404 })
     }
 
+    // V-35b FIX: Verify etiqueta belongs to this tenant before linking
+    const etiqueta = await dbGet(
+      "SELECT id FROM etiquetas WHERE id = ? AND negocio_id = ?",
+      { "1": etiqueta_id, "2": tenant.negocio.id }
+    )
+    if (!etiqueta) {
+      return NextResponse.json({ error: "Etiqueta no encontrada en este negocio" }, { status: 404 })
+    }
+
     const existing = await dbGet(
       "SELECT 1 FROM factura_etiqueta WHERE factura_id = ? AND etiqueta_id = ?",
       { "1": facturaId, "2": etiqueta_id }

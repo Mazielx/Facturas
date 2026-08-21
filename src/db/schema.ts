@@ -242,4 +242,10 @@ export async function initializeSchema(): Promise<void> {
   if (!sesionesColumns.some((c) => c.name === "fingerprint")) {
     await dbExec("ALTER TABLE sesiones ADD COLUMN fingerprint TEXT")
   }
+
+  // V-31c FIX: Add per-tenant unique index on adjunto_hash.
+  // Note: SQLite doesn't support dropping the global UNIQUE constraint,
+  // so we add a per-tenant index and handle cross-tenant UNIQUE violations
+  // gracefully in the extraction code (treat as "already processed").
+  await dbExec("CREATE UNIQUE INDEX IF NOT EXISTS idx_facturas_hash_tenant ON facturas(adjunto_hash, negocio_slug)").catch(() => {})
 }

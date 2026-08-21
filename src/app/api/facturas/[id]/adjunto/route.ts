@@ -34,10 +34,24 @@ export async function GET(
 
     const buffer = new Uint8Array(adjunto.content)
 
+    // V-33 FIX: MIME allowlist + security headers
+    const SAFE_MIMES: Record<string, string> = {
+      "application/pdf": "application/pdf",
+      "image/jpeg": "image/jpeg",
+      "image/png": "image/png",
+      "image/webp": "image/webp",
+      "image/gif": "image/gif",
+    }
+    const safeMime = SAFE_MIMES[adjunto.mime_type || ""] || "application/octet-stream"
+
     return new Response(buffer, {
       headers: {
-        "Content-Type": adjunto.mime_type || "application/pdf",
-        "Content-Disposition": `inline; filename="${adjunto.filename}"`,
+        "Content-Type": safeMime,
+        "Content-Disposition": safeMime === "application/octet-stream"
+          ? `attachment; filename="${adjunto.filename}"`
+          : `inline; filename="${adjunto.filename}"`,
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, max-age=0, must-revalidate",
       },
     })
   } catch (error) {

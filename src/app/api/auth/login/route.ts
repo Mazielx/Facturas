@@ -14,16 +14,6 @@ export async function POST(req: NextRequest) {
     const userAgent = extractUserAgent(req)
     const fingerprint = createSessionFingerprint(ip, userAgent)
 
-    // Rate limit
-    const rl = checkRateLimit(ip, RATE_LIMITS.login)
-    if (!rl.allowed) {
-      await logSecurityEvent("rate_limited", { ip, userAgent, metadata: { endpoint: "login" } })
-      return NextResponse.json(
-        { error: "Demasiados intentos. Intenta de nuevo mas tarde." },
-        { status: 429, headers: getRateLimitHeaders(rl) }
-      )
-    }
-
     const body = await req.json()
     const { email, password } = body
 
@@ -31,6 +21,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Email y contrasena son requeridos" },
         { status: 400 }
+      )
+    }
+
+    // Rate limit by IP + email combination (prevents targeted lockout DoS)
+    const rl = checkRateLimit(`${ip}:${email}`, RATE_LIMITS.login)
+    if (!rl.allowed) {
+      await logSecurityEvent("rate_limited", { ip, userAgent, metadata: { endpoint: "login" } })
+      return NextResponse.json(
+        { error: "Demasiados intentos. Intenta de nuevo mas tarde." },
+        { status: 429, headers: getRateLimitHeaders(rl) }
       )
     }
 
