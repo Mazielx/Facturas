@@ -33,7 +33,8 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // V-47: Removed unsafe-inline/unsafe-eval — external scripts in /public/
+      "script-src 'self'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https://lh3.googleusercontent.com https://*.googleusercontent.com",
       "font-src 'self'",

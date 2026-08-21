@@ -75,7 +75,8 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ user: updated })
   } catch (error) {
-    console.error("Error updating profile:", error)
+    // V-45: Don't log full error object (may contain sensitive data)
+    console.error("Error updating profile:", error instanceof Error ? error.message?.slice(0, 100) : "unknown")
     return NextResponse.json({ error: "Error al actualizar perfil" }, { status: 500 })
   }
 }

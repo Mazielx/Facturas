@@ -65,21 +65,8 @@ export const viewport: Viewport = {
   themeColor: "#10b981",
 }
 
-const themeScript = `
-  (function() {
-    var t = localStorage.getItem('theme');
-    var d = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.classList.add(d ? 'dark' : 'light');
-  })();
-`
-
-const swScript = `
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-      navigator.serviceWorker.register('/sw.js').catch(function() {});
-    });
-  }
-`
+// V-47: Scripts moved to /public/ to remove unsafe-inline from CSP script-src
+// Theme init: /theme-init.js, SW registration: /sw-register.js
 
 export default function RootLayout({
   children,
@@ -103,8 +90,9 @@ export default function RootLayout({
             <p>Por favor habilita JavaScript en tu navegador para usar la aplicacion.</p>
           </div>
         </noscript>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <script dangerouslySetInnerHTML={{ __html: swScript }} />
+        {/* V-47: External scripts — no unsafe-inline needed in script-src */}
+        <script src="/theme-init.js" />
+        <script src="/sw-register.js" />
       </head>
       <body>
         <ThemeProvider>
