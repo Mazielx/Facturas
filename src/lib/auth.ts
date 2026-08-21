@@ -4,7 +4,10 @@ import { cookies } from "next/headers"
 import { dbRun, dbGet } from "@/db/client"
 
 const SESSION_COOKIE = "session_id"
-const SESSION_EXPIRY_DAYS = 30
+// V-40 FIX: Reduced from 30 days to 7 days (NIST recommendation: max 30 days for low-risk, 7 days for financial)
+const SESSION_EXPIRY_DAYS = 7
+// V-40: Idle timeout — session expires after 30 minutes of inactivity
+const IDLE_TIMEOUT_MINUTES = 30
 
 export interface Usuario {
   id: number
@@ -46,7 +49,7 @@ export async function createSession(usuarioId: number, fingerprint?: string): Pr
   expiresAt.setDate(expiresAt.getDate() + SESSION_EXPIRY_DAYS)
 
   await dbRun(
-    "INSERT INTO sesiones (id, usuario_id, expires_at, fingerprint) VALUES (?, ?, ?, ?)",
+    "INSERT INTO sesiones (id, usuario_id, expires_at, fingerprint, last_activity_at) VALUES (?, ?, ?, ?, datetime('now'))",
     { "1": sessionId, "2": usuarioId, "3": expiresAt.toISOString(), "4": fingerprint || null }
   )
 
@@ -58,9 +61,20 @@ export async function createSession(usuarioId: number, fingerprint?: string): Pr
   }
 }
 
+/**
+ * V-40 FIX: Update last_activity_at (sliding window idle timeout).
+ * Called on every authenticated request.
+ */
+export async function touchSession(sessionId: string): Promise<void> {
+  await dbRun(
+    "UPDATE sesiones SET last_activity_at = datetime('now') WHERE id = ?",
+    { "1": sessionId }
+  ).catch(() => {})
+}
+
 export async function getSessionUser(sessionId: string): Promise<(Usuario & { session: Session }) | null> {
-  const row = await dbGet<Usuario & { session_id: string; session_expires_at: string; session_created_at: string }>(
-    `SELECT u.*, s.id as session_id, s.expires_at as session_expires_at, s.created_at as session_created_at
+  const row = await dbGet<Usuario & { session_id: string; session_expires_at: string; session_created_at: string; last_activity_at: string | null }>(
+    `SELECT u.*, s.id as session_id, s.expires_at as session_expires_at, s.created_at as session_created_at, s.last_activity_at
      FROM usuarios u
      JOIN sesiones s ON s.usuario_id = u.id
      WHERE s.id = ? AND s.expires_at > datetime('now') AND u.activo = 1`,
@@ -68,6 +82,20 @@ export async function getSessionUser(sessionId: string): Promise<(Usuario & { se
   )
 
   if (!row) return null
+
+  // V-40 FIX: Check idle timeout — session expires after IDLE_TIMEOUT_MINUTES of inactivity
+  if (row.last_activity_at) {
+    const lastActivity = new Date(row.last_activity_at).getTime()
+    const idleMs = Date.now() - lastActivity
+    if (idleMs > IDLE_TIMEOUT_MINUTES * 60 * 1000) {
+      // Session idle too long — delete it
+      await dbRun("DELETE FROM sesiones WHERE id = ?", { "1": sessionId })
+      return null
+    }
+  }
+
+  // V-40: Touch session (sliding window) on every authenticated access
+  await touchSession(sessionId)
 
   return {
     id: row.id,

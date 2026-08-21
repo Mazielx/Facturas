@@ -303,6 +303,12 @@ export type SecurityEvent =
   | "api_key_used"
   | "tenant_switched"
   | "export_downloaded"
+  | "oauth_invalid_state"
+  | "oauth_state_tenant_mismatch"
+  | "oauth_email_mismatch"
+  | "oauth_cuenta_connected"
+  | "oauth_login_completed"
+  | "oauth_error"
 
 export async function logSecurityEvent(
   event: SecurityEvent,

@@ -242,6 +242,19 @@ export async function initializeSchema(): Promise<void> {
   if (!sesionesColumns.some((c) => c.name === "fingerprint")) {
     await dbExec("ALTER TABLE sesiones ADD COLUMN fingerprint TEXT")
   }
+  // V-40: Add last_activity_at for idle timeout
+  if (!sesionesColumns.some((c) => c.name === "last_activity_at")) {
+    await dbExec("ALTER TABLE sesiones ADD COLUMN last_activity_at TEXT")
+  }
+
+  // V-34: OAuth nonce table for single-use state enforcement
+  await dbExec(`CREATE TABLE IF NOT EXISTS oauth_nonces (
+    jti TEXT PRIMARY KEY,
+    expires_at TEXT NOT NULL
+  )`)
+
+  // V-34: Cleanup expired nonces
+  await dbExec("DELETE FROM oauth_nonces WHERE expires_at < datetime('now')").catch(() => {})
 
   // V-31c FIX: Add per-tenant unique index on adjunto_hash.
   // Note: SQLite doesn't support dropping the global UNIQUE constraint,

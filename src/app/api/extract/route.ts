@@ -59,7 +59,7 @@ export async function POST(request: Request) {
       emailList = await listEmailsWithAttachments(auth, 50)
     } catch (gmailError) {
       const msg = gmailError instanceof Error ? gmailError.message : "Error desconocido"
-      console.error(`Gmail list error [${cuentaEmail}]:`, msg)
+      console.error(`Gmail list error [cuenta]:`, msg.includes("invalid_grant") ? "invalid_grant" : "list_error")
       if (msg.includes("invalid_grant") || msg.includes("Token has been expired or revoked")) {
         allErrors.push({ emailId: "", filename: "", error: "Tokens expirados o revocados", cuenta: cuentaEmail })
         return
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
           }
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : "Error desconocido"
-          console.error(`Extract error [${email.id}/${attachment.filename}]:`, errMsg)
+          console.error(`Extract error [attachment]:`, errMsg.includes("invalid_grant") ? "invalid_grant" : "extraction_error")
           allErrors.push({ emailId: email.id, filename: attachment.filename, error: errMsg, cuenta: cuentaEmail })
         }
       }
@@ -152,7 +152,8 @@ export async function POST(request: Request) {
       }
     }
 
-    console.log("EXTRACT_RESULT:", JSON.stringify({ processed: allProcessed.length, errors: allErrors.length, errorDetails: allErrors }))
+    // V-45 FIX: Don't log full error details (may contain sensitive extraction data)
+    console.log("EXTRACT_RESULT:", JSON.stringify({ processed: allProcessed.length, errors: allErrors.length }))
 
     await logSecurityEvent("export_downloaded", { userId: tenant.user.id, ip, userAgent, metadata: { type: "extract", processed: allProcessed.length, errors: allErrors.length } })
 
@@ -164,7 +165,8 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     const { message } = secureErrorResponse(error, "extract")
-    console.error("Error extracting invoices:", error)
+    // V-45 FIX: Don't log full error object (may contain tokens/credentials)
+    console.error("Error extracting invoices:", error instanceof Error ? error.message?.slice(0, 100) : "unknown")
     if (message.includes("invalid_grant") || message.includes("Token has been expired or revoked")) {
       return NextResponse.json(
         { error: "Gmail tokens expirados o revocados" },

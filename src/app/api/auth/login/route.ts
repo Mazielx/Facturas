@@ -8,6 +8,9 @@ import {
   logSecurityEvent, secureErrorResponse,
 } from "@/lib/security"
 
+// V-39 FIX: Unified error message for all auth failures (prevents account enumeration)
+const AUTH_ERROR = "Credenciales invalidas"
+
 export async function POST(req: NextRequest) {
   try {
     const ip = extractClientIp(req)
@@ -18,14 +21,18 @@ export async function POST(req: NextRequest) {
     const { email, password } = body
 
     if (!email || !password) {
+      // V-39 FIX: Same error for missing fields (prevents field-level enumeration)
       return NextResponse.json(
-        { error: "Email y contrasena son requeridos" },
-        { status: 400 }
+        { error: AUTH_ERROR },
+        { status: 401 }
       )
     }
 
+    // V-39 FIX: Normalize email to lowercase + trim (prevents case-based enumeration)
+    const normalizedEmail = email.toLowerCase().trim()
+
     // Rate limit by IP + email combination (prevents targeted lockout DoS)
-    const rl = checkRateLimit(`${ip}:${email}`, RATE_LIMITS.login)
+    const rl = checkRateLimit(`${ip}:${normalizedEmail}`, RATE_LIMITS.login)
     if (!rl.allowed) {
       await logSecurityEvent("rate_limited", { ip, userAgent, metadata: { endpoint: "login" } })
       return NextResponse.json(
@@ -35,39 +42,36 @@ export async function POST(req: NextRequest) {
     }
 
     // Check account lockout
-    const lockout = isAccountLocked(email)
+    const lockout = isAccountLocked(normalizedEmail)
     if (lockout.locked) {
-      await logSecurityEvent("login_locked", { email, ip, userAgent })
+      await logSecurityEvent("login_locked", { email: normalizedEmail, ip, userAgent })
+      // V-39 FIX: Don't reveal lockout status to unauthenticated users (enumeration vector)
       return NextResponse.json(
-        { error: `Cuenta bloqueada temporalmente. Intenta en ${Math.ceil(lockout.remainingMs / 60000)} minutos.` },
-        { status: 423 }
-      )
-    }
-
-    let usuario = await getUsuarioByEmail(email)
-
-    if (!usuario) {
-      // V-14 FIX: Removed admin auto-provisioning from env vars.
-      // Admin must be created via CLI seed or /api/admin/usuarios.
-      recordFailedLogin(email)
-      await logSecurityEvent("login_failed", { email, ip, userAgent, metadata: { reason: "user_not_found" } })
-      return NextResponse.json(
-        { error: "Credenciales invalidas" },
-        { status: 401, headers: getRateLimitHeaders(rl) }
-      )
-    }
-
-    if (!usuario) {
-      return NextResponse.json(
-        { error: "Credenciales invalidas" },
+        { error: AUTH_ERROR },
         { status: 401 }
       )
     }
 
-    if (!usuario.activo) {
-      await logSecurityEvent("login_failed", { userId: usuario.id, email, ip, userAgent, metadata: { reason: "account_disabled" } })
+    const usuario = await getUsuarioByEmail(normalizedEmail)
+
+    if (!usuario) {
+      // V-14 FIX: Removed admin auto-provisioning from env vars.
+      recordFailedLogin(normalizedEmail)
+      await logSecurityEvent("login_failed", { email: normalizedEmail, ip, userAgent, metadata: { reason: "user_not_found" } })
+      // V-39 FIX: Same error for user not found (prevents enumeration)
       return NextResponse.json(
-        { error: "Usuario desactivado" },
+        { error: AUTH_ERROR },
+        { status: 401, headers: getRateLimitHeaders(rl) }
+      )
+    }
+
+    // V-39 FIX: Removed dead duplicate `if (!usuario)` block
+
+    if (!usuario.activo) {
+      // V-39 FIX: Same error for disabled accounts (prevents enumeration)
+      await logSecurityEvent("login_failed", { userId: usuario.id, email: normalizedEmail, ip, userAgent, metadata: { reason: "account_disabled" } })
+      return NextResponse.json(
+        { error: AUTH_ERROR },
         { status: 401 }
       )
     }
@@ -75,22 +79,22 @@ export async function POST(req: NextRequest) {
     const validPassword = await verifyPassword(password, usuario.password_hash)
 
     if (!validPassword) {
-      const lockResult = recordFailedLogin(email)
-      await logSecurityEvent("login_failed", { userId: usuario.id, email, ip, userAgent, metadata: { reason: "wrong_password" } })
+      const lockResult = recordFailedLogin(normalizedEmail)
+      await logSecurityEvent("login_failed", { userId: usuario.id, email: normalizedEmail, ip, userAgent, metadata: { reason: "wrong_password" } })
       if (lockResult.locked) {
-        await logSecurityEvent("account_locked", { userId: usuario.id, email, ip, userAgent })
+        await logSecurityEvent("account_locked", { userId: usuario.id, email: normalizedEmail, ip, userAgent })
       }
       return NextResponse.json(
-        { error: "Credenciales invalidas" },
+        { error: AUTH_ERROR },
         { status: 401, headers: getRateLimitHeaders(rl) }
       )
     }
 
     // Success — clear lockout, create session with fingerprint
-    clearFailedLogins(email)
+    clearFailedLogins(normalizedEmail)
     const session = await createSession(usuario.id, fingerprint)
 
-    await logSecurityEvent("login_success", { userId: usuario.id, email, ip, userAgent })
+    await logSecurityEvent("login_success", { userId: usuario.id, email: normalizedEmail, ip, userAgent })
 
     let negocioSlug: string | null = null
     const allNegocios = await getAllNegocios()
