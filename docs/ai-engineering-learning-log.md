@@ -1004,6 +1004,29 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
+### Entry 031: Pentest Phases 9-11 — Deep Auth, Data Exfiltration, Edge Cases & Chaining
+
+**Date:** 2026-08-21
+**Topic:** Deep pentest across authentication, data exfiltration paths, edge cases, and vulnerability chaining. 19 more vulnerabilities found and fixed (total: 50).
+**Time spent:** ~2 hours
+
+**What I learned:**
+- **Email change without re-auth is the most dangerous account-level flaw.** A stolen session cookie → instant, permanent account takeover. The fix (require current password) is simple but critical — this is what separates a security audit from a code review.
+- **CSV injection sanitization is only useful if it actually works.** The previous fix used `"'$&".slice(1)` which evaluates to `"$&"` — a regex backreference that returns the original string unchanged. The code looked correct, had a comment claiming it was fixed, and was completely inert. **Always write tests for security fixes.**
+- **Attachment serving is a stored XSS delivery mechanism.** If an attacker can control the `mime_type` field (via crafted email attachment) and the server serves it inline with `Content-Type: attacker-controlled`, the attacker gets script execution on the app origin. MIME allowlisting + `nosniff` + `Content-Disposition: attachment` for unknown types is the defense.
+- **Backup endpoints are the ultimate data exfiltration primitive.** One admin request → entire database including all tenants' invoice binaries. Strip `content` blobs, add rate limiting, add audit logging, and require re-authentication.
+- **Cross-tenant JOIN leaks in child tables are silent.** `duplicados_potenciales` had no tenant filter on the "original" side of the join — the "duplicated" side was filtered but the "source" was global. Always filter BOTH sides of a JOIN.
+- **XML entity expansion (billion laughs) is still a real attack.** `fast-xml-parser` with default settings processes entities. Set `processEntities: false` to block it.
+- **Global UNIQUE constraints in multi-tenant databases break tenant isolation.** `UNIQUE(adjunto_hash)` across all tenants means tenant A's hash blocks tenant B from ever storing the same file. Handle gracefully in code + add per-tenant unique index.
+- **Financial field validation at ingestion prevents downstream corruption.** Negative totals, broken IVA calculations, and manipulated amounts flow through to exports, stats, and accounting — validate at the door.
+
+**Key insight:**
+> "The difference between 'this looks secure' and 'this is secure' is often one line of code — the line that checks the right condition. A CSV escape function that doesn't actually escape anything is worse than not having one, because it creates false confidence. Always test security controls with adversarial inputs."
+
+**Confidence level:** Can perform deep-dive pentest across auth flows, data exfiltration paths, edge cases, and vulnerability chains. Can identify and fix both obvious injection bugs and subtle logic flaws (broken sanitization, cross-tenant JOIN leaks, dead security code).
+
+---
+
 ## Project Portfolio
 
 ### Project 1: Gobernanza (Learning Management System)
