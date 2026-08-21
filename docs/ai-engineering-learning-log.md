@@ -888,6 +888,41 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
+### Entry 028: Security Pentest & Hardening
+
+**Date:** 2026-08-19
+**Topic:** Full security audit of Grydex — reconnaissance, threat modeling, vulnerability discovery, and remediation across 48 API endpoints
+**Time spent:** ~2 hours
+
+**What I learned:**
+- Cookie security: `document.cookie` in JavaScript CANNOT set `HttpOnly` — if you set session cookies client-side, XSS can always steal them. The fix is to set cookies server-side via `Set-Cookie` headers with `HttpOnly: true`
+- Mass assignment: passing `request.json()` directly to an update function is dangerous if the function accepts fields like `plan_pagado_hasta`, `stripe_customer_id`, or `stripe_subscription_id`. Always whitelist allowed fields
+- Tenant isolation must be applied to EVERY data model, not just the main entities. Etiquetas (labels) were global across all tenants — a schema migration adding `negocio_id` was needed
+- Password change should invalidate ALL existing sessions, not just the current one. Otherwise a stolen session persists after the password reset
+- Backups that include password hashes are a data leak vector — always strip sensitive fields
+- Profile photo filenames are predictable (`{userId}-{random}.ext`) — even with random bytes, add an ownership check (user ID prefix validation)
+- Content-Security-Policy header mitigates XSS impact — without it, any XSS has full DOM access
+- Legacy cookie-based auth paths (like `gmail_tokens` fallback) are attack surface — remove them when DB-based storage is in place
+- OAuth state signing should never fall back to a hardcoded key in production — enforce env vars
+
+**The process:**
+1. Mapped full attack surface: 48 API endpoints, 8 protected pages, auth flows, DB schema
+2. Read EVERY backend file (auth, tenant, paywall, proxy, all API routes, DB schema/client, gmail, stripe, notifications)
+3. Identified 12 vulnerabilities: 3 CRITICAL, 5 HIGH, 4 MEDIUM
+4. Fixed 10 vulnerabilities in one pass (V-05 rate limiting deferred — needs serverless-compatible solution)
+5. Verified: tsc clean, 71/71 tests pass, CSP header confirmed in production
+
+**Mistakes I made:**
+- Initially forgot that the select endpoint also needed server-side cookie setting (client was using `document.cookie`)
+- The extract route had leftover references to `tokensCookie` and `getOAuth2ClientWithTokens` after cleanup — caught by tsc
+
+**Key insight:**
+> "A security audit isn't about finding one bug. It's about reading every file, understanding every trust boundary, and asking 'what if this control fails?' at every layer. The most dangerous vulnerabilities are the ones that chain together — XSS + non-HttpOnly cookies = full account takeover."
+
+**Confidence level:** Can perform a systematic security audit of a full-stack Next.js app, identify vulnerabilities across auth, authz, data isolation, and configuration, and implement fixes
+
+---
+
 ## Project Portfolio
 
 ### Project 1: Gobernanza (Learning Management System)
