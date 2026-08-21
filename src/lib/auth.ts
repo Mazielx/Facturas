@@ -40,14 +40,14 @@ export function createSessionId(): string {
   return crypto.randomBytes(32).toString("hex")
 }
 
-export async function createSession(usuarioId: number): Promise<Session> {
+export async function createSession(usuarioId: number, fingerprint?: string): Promise<Session> {
   const sessionId = createSessionId()
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + SESSION_EXPIRY_DAYS)
 
   await dbRun(
-    "INSERT INTO sesiones (id, usuario_id, expires_at) VALUES (?, ?, ?)",
-    { "1": sessionId, "2": usuarioId, "3": expiresAt.toISOString() }
+    "INSERT INTO sesiones (id, usuario_id, expires_at, fingerprint) VALUES (?, ?, ?, ?)",
+    { "1": sessionId, "2": usuarioId, "3": expiresAt.toISOString(), "4": fingerprint || null }
   )
 
   return {
@@ -120,6 +120,14 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 export async function deleteExpiredSessions(): Promise<void> {
   await dbRun("DELETE FROM sesiones WHERE expires_at < datetime('now')")
+}
+
+export async function deleteAllUserSessions(usuarioId: number, exceptSessionId?: string): Promise<void> {
+  if (exceptSessionId) {
+    await dbRun("DELETE FROM sesiones WHERE usuario_id = ? AND id != ?", { "1": usuarioId, "2": exceptSessionId })
+  } else {
+    await dbRun("DELETE FROM sesiones WHERE usuario_id = ?", { "1": usuarioId })
+  }
 }
 
 export async function getUsuarioByEmail(email: string): Promise<Usuario | undefined> {

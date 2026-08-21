@@ -5,6 +5,11 @@ import { dbAll } from "@/db/client"
 import { isSuscripcionActiva } from "@/lib/plans"
 import { buildFacturasWorkbookBuffer, type ExcelColumn } from "@/lib/excel"
 import { APP_NAME } from "@/lib/brand"
+import {
+  checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
+  extractClientIp, extractUserAgent,
+  logSecurityEvent, secureErrorResponse,
+} from "@/lib/security"
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,6 +21,17 @@ export async function GET(req: NextRequest) {
     const apiKey = await validateApiKey(authHeader.substring(7))
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "API key invalida" }), { status: 401, headers: { "Content-Type": "application/json" } })
+    }
+
+    const ip = extractClientIp(req)
+    const userAgent = extractUserAgent(req)
+
+    const rl = checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.export)
+    if (!rl.allowed) {
+      return new Response(JSON.stringify({ error: "Demasiadas exportaciones. Espera unos minutos." }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", ...getRateLimitHeaders(rl) },
+      })
     }
 
     const negocio = await getNegocioById(apiKey.negocio_id)
@@ -37,6 +53,8 @@ export async function GET(req: NextRequest) {
        FROM facturas WHERE negocio_slug = ? ORDER BY fecha_emision DESC`,
       { "1": negocio.slug }
     ) as Record<string, unknown>[]
+
+    await logSecurityEvent("api_key_used", { ip, userAgent, metadata: { keyId: apiKey.id, endpoint: "export", format, count: facturas.length } })
 
     if (format === "xlsx") {
       const columns: ExcelColumn[] = [

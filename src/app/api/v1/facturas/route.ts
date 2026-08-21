@@ -3,6 +3,11 @@ import { validateApiKey } from "@/lib/api-auth"
 import { getNegocioById } from "@/db"
 import { dbGet, dbAll } from "@/db/client"
 import { isSuscripcionActiva } from "@/lib/plans"
+import {
+  checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
+  extractClientIp, extractUserAgent,
+  logSecurityEvent, secureErrorResponse,
+} from "@/lib/security"
 
 async function authApi(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
@@ -19,6 +24,18 @@ export async function GET(req: NextRequest) {
     const apiKey = await authApi(req)
     if (!apiKey) {
       return NextResponse.json({ error: "API key invalida" }, { status: 401 })
+    }
+
+    const ip = extractClientIp(req)
+    const userAgent = extractUserAgent(req)
+
+    // Rate limit by API key ID
+    const rl = checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.apiGlobal)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Demasiadas peticiones. Intenta de nuevo mas tarde." },
+        { status: 429, headers: getRateLimitHeaders(rl) }
+      )
     }
 
     const negocio = await getNegocioById(apiKey.negocio_id)
@@ -50,6 +67,8 @@ export async function GET(req: NextRequest) {
       { "1": negocio.slug }
     )
 
+    await logSecurityEvent("api_key_used", { ip, userAgent, metadata: { keyId: apiKey.id, endpoint: "list_facturas" } })
+
     return NextResponse.json({
       data: facturas,
       pagination: {
@@ -60,8 +79,8 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch (error) {
-    console.error("API v1 error:", error)
-    return NextResponse.json({ error: "Error interno" }, { status: 500 })
+    const { message } = secureErrorResponse(error, "api_v1_list")
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -70,6 +89,18 @@ export async function POST(req: NextRequest) {
     const apiKey = await authApi(req)
     if (!apiKey) {
       return NextResponse.json({ error: "API key invalida" }, { status: 401 })
+    }
+
+    const ip = extractClientIp(req)
+    const userAgent = extractUserAgent(req)
+
+    // Rate limit by API key ID
+    const rl = checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.apiGlobal)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Demasiadas peticiones. Intenta de nuevo mas tarde." },
+        { status: 429, headers: getRateLimitHeaders(rl) }
+      )
     }
 
     if (!apiKey.permisos.includes("write")) {
@@ -108,9 +139,11 @@ export async function POST(req: NextRequest) {
       }
     )
 
+    await logSecurityEvent("api_key_used", { ip, userAgent, metadata: { keyId: apiKey.id, endpoint: "create_factura", facturaId: result.lastInsertRowid } })
+
     return NextResponse.json({ id: result.lastInsertRowid, success: true }, { status: 201 })
   } catch (error) {
-    console.error("API v1 error:", error)
-    return NextResponse.json({ error: "Error interno" }, { status: 500 })
+    const { message } = secureErrorResponse(error, "api_v1_create")
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

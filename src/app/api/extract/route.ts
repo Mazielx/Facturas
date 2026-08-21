@@ -6,13 +6,31 @@ import { notifyExtractionErrors } from "@/lib/notifications"
 import { getCuentasCorreo, updateCuentaCorreoTokens } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
 import { google } from "googleapis"
+import {
+  checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
+  extractClientIp, extractUserAgent,
+  logSecurityEvent, secureErrorResponse,
+} from "@/lib/security"
 
-export async function POST() {
+export async function POST(request: Request) {
   let tenant: Awaited<ReturnType<typeof requireActiveTenant>>
   try {
     tenant = await requireActiveTenant()
   } catch {
     return NextResponse.json({ error: "No hay negocio seleccionado" }, { status: 401 })
+  }
+
+  const ip = extractClientIp(request)
+  const userAgent = extractUserAgent(request)
+
+  // Rate limit extraction by user ID
+  const rl = checkRateLimit(String(tenant.user.id), RATE_LIMITS.extract)
+  if (!rl.allowed) {
+    await logSecurityEvent("rate_limited", { userId: tenant.user.id, ip, userAgent, metadata: { endpoint: "extract" } })
+    return NextResponse.json(
+      { error: "Demasiadas extracciones. Espera unos minutos." },
+      { status: 429, headers: getRateLimitHeaders(rl) }
+    )
   }
 
   if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
@@ -136,6 +154,8 @@ export async function POST() {
 
     console.log("EXTRACT_RESULT:", JSON.stringify({ processed: allProcessed.length, errors: allErrors.length, errorDetails: allErrors }))
 
+    await logSecurityEvent("export_downloaded", { userId: tenant.user.id, ip, userAgent, metadata: { type: "extract", processed: allProcessed.length, errors: allErrors.length } })
+
     return NextResponse.json({
       success: true,
       processed: allProcessed.length,
@@ -143,8 +163,8 @@ export async function POST() {
       details: { processed: allProcessed, errors: allErrors },
     })
   } catch (error) {
+    const { message } = secureErrorResponse(error, "extract")
     console.error("Error extracting invoices:", error)
-    const message = error instanceof Error ? error.message : "Error desconocido"
     if (message.includes("invalid_grant") || message.includes("Token has been expired or revoked")) {
       return NextResponse.json(
         { error: "Gmail tokens expirados o revocados" },

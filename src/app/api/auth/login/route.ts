@@ -1,9 +1,29 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyPassword, createSession, getUsuarioByEmail, createUsuario as authCreateUsuario } from "@/lib/auth"
 import { getAllNegocios, createNegocio } from "@/db"
+import {
+  checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
+  recordFailedLogin, clearFailedLogins, isAccountLocked,
+  createSessionFingerprint, extractClientIp, extractUserAgent,
+  logSecurityEvent, secureErrorResponse,
+} from "@/lib/security"
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = extractClientIp(req)
+    const userAgent = extractUserAgent(req)
+    const fingerprint = createSessionFingerprint(ip, userAgent)
+
+    // Rate limit
+    const rl = checkRateLimit(ip, RATE_LIMITS.login)
+    if (!rl.allowed) {
+      await logSecurityEvent("rate_limited", { ip, userAgent, metadata: { endpoint: "login" } })
+      return NextResponse.json(
+        { error: "Demasiados intentos. Intenta de nuevo mas tarde." },
+        { status: 429, headers: getRateLimitHeaders(rl) }
+      )
+    }
+
     const body = await req.json()
     const { email, password } = body
 
@@ -11,6 +31,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Email y contrasena son requeridos" },
         { status: 400 }
+      )
+    }
+
+    // Check account lockout
+    const lockout = isAccountLocked(email)
+    if (lockout.locked) {
+      await logSecurityEvent("login_locked", { email, ip, userAgent })
+      return NextResponse.json(
+        { error: `Cuenta bloqueada temporalmente. Intenta en ${Math.ceil(lockout.remainingMs / 60000)} minutos.` },
+        { status: 423 }
       )
     }
 
@@ -33,9 +63,11 @@ export async function POST(req: NextRequest) {
         usuario = await authCreateUsuario(email, password, adminNombre, "admin", negocioId) as any
         console.log(`[login] Auto-created admin user: ${email}`)
       } else {
+        recordFailedLogin(email)
+        await logSecurityEvent("login_failed", { email, ip, userAgent, metadata: { reason: "user_not_found" } })
         return NextResponse.json(
           { error: "Credenciales invalidas" },
-          { status: 401 }
+          { status: 401, headers: getRateLimitHeaders(rl) }
         )
       }
     }
@@ -48,6 +80,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!usuario.activo) {
+      await logSecurityEvent("login_failed", { userId: usuario.id, email, ip, userAgent, metadata: { reason: "account_disabled" } })
       return NextResponse.json(
         { error: "Usuario desactivado" },
         { status: 401 }
@@ -57,13 +90,22 @@ export async function POST(req: NextRequest) {
     const validPassword = await verifyPassword(password, usuario.password_hash)
 
     if (!validPassword) {
+      const lockResult = recordFailedLogin(email)
+      await logSecurityEvent("login_failed", { userId: usuario.id, email, ip, userAgent, metadata: { reason: "wrong_password" } })
+      if (lockResult.locked) {
+        await logSecurityEvent("account_locked", { userId: usuario.id, email, ip, userAgent })
+      }
       return NextResponse.json(
         { error: "Credenciales invalidas" },
-        { status: 401 }
+        { status: 401, headers: getRateLimitHeaders(rl) }
       )
     }
 
-    const session = await createSession(usuario.id)
+    // Success — clear lockout, create session with fingerprint
+    clearFailedLogins(email)
+    const session = await createSession(usuario.id, fingerprint)
+
+    await logSecurityEvent("login_success", { userId: usuario.id, email, ip, userAgent })
 
     let negocioSlug: string | null = null
     const allNegocios = await getAllNegocios()
@@ -105,10 +147,7 @@ export async function POST(req: NextRequest) {
 
     return response
   } catch (error) {
-    console.error("Login error:", error)
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    )
+    const { message } = secureErrorResponse(error, "login")
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

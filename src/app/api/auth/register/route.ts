@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createUsuario, getUsuarioByEmail, createSession } from "@/lib/auth"
 import { getAllNegocios } from "@/db"
+import {
+  checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
+  validatePasswordStrength, checkPasswordBreach,
+  createSessionFingerprint, extractClientIp, extractUserAgent,
+  sanitizeEmail, sanitizeString,
+  logSecurityEvent, secureErrorResponse,
+} from "@/lib/security"
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = extractClientIp(req)
+    const userAgent = extractUserAgent(req)
+    const fingerprint = createSessionFingerprint(ip, userAgent)
+
+    // Rate limit
+    const rl = checkRateLimit(ip, RATE_LIMITS.register)
+    if (!rl.allowed) {
+      await logSecurityEvent("rate_limited", { ip, userAgent, metadata: { endpoint: "register" } })
+      return NextResponse.json(
+        { error: "Demasiados registros desde esta IP. Intenta de nuevo mas tarde." },
+        { status: 429, headers: getRateLimitHeaders(rl) }
+      )
+    }
+
     const body = await req.json()
     const { email, password, nombre } = body
 
@@ -14,14 +35,36 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (password.length < 8) {
+    // Sanitize inputs
+    const cleanEmail = sanitizeEmail(email)
+    if (!cleanEmail) {
+      return NextResponse.json({ error: "Email invalido" }, { status: 400 })
+    }
+
+    const cleanNombre = sanitizeString(nombre, 100)
+    if (cleanNombre.length < 1) {
+      return NextResponse.json({ error: "Nombre requerido" }, { status: 400 })
+    }
+
+    // Password strength validation
+    const strength = validatePasswordStrength(password)
+    if (!strength.valid) {
       return NextResponse.json(
-        { error: "La contrasena debe tener al menos 8 caracteres" },
+        { error: "Contrasena no cumple requisitos de seguridad", feedback: strength.feedback },
         { status: 400 }
       )
     }
 
-    const existing = await getUsuarioByEmail(email)
+    // Password breach check (HIBP)
+    const breach = await checkPasswordBreach(password)
+    if (breach.breached) {
+      return NextResponse.json(
+        { error: "Esta contrasena ha sido comprometida en una filtracion de datos. Elige una contrasena diferente." },
+        { status: 400 }
+      )
+    }
+
+    const existing = await getUsuarioByEmail(cleanEmail)
     if (existing) {
       return NextResponse.json(
         { error: "Ya existe una cuenta con ese email" },
@@ -32,8 +75,11 @@ export async function POST(req: NextRequest) {
     const allNegocios = await getAllNegocios()
     const negocioId = allNegocios.length === 1 ? allNegocios[0].id : undefined
 
-    const usuario = await createUsuario(email, password, nombre, "negocio", negocioId)
-    const session = await createSession(usuario.id)
+    const usuario = await createUsuario(cleanEmail, password, cleanNombre, "negocio", negocioId)
+    const session = await createSession(usuario.id, fingerprint)
+
+    await logSecurityEvent("register", { userId: usuario.id, email: cleanEmail, ip, userAgent })
+    await logSecurityEvent("session_created", { userId: usuario.id, ip, userAgent })
 
     let negocioSlug: string | null = null
     if (allNegocios.length === 1) {
@@ -74,10 +120,7 @@ export async function POST(req: NextRequest) {
 
     return response
   } catch (error) {
-    console.error("Register error:", error)
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    )
+    const { message } = secureErrorResponse(error, "register")
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

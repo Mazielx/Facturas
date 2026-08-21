@@ -36,8 +36,19 @@ export async function initializeSchema(): Promise<void> {
       id TEXT PRIMARY KEY,
       usuario_id INTEGER NOT NULL,
       expires_at TEXT NOT NULL,
+      fingerprint TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS security_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL,
+      user_id INTEGER,
+      email TEXT,
+      ip TEXT,
+      user_agent TEXT,
+      metadata TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
     )`,
     `CREATE TABLE IF NOT EXISTS api_keys (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -213,5 +224,22 @@ export async function initializeSchema(): Promise<void> {
   if (!etiquetasColumns.some((c) => c.name === "negocio_id")) {
     await dbExec("ALTER TABLE etiquetas ADD COLUMN negocio_id INTEGER DEFAULT 1")
     await dbExec("UPDATE etiquetas SET negocio_id = 1 WHERE negocio_id IS NULL")
+  }
+
+  // Security tables
+  await dbExec(`CREATE TABLE IF NOT EXISTS security_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    user_id INTEGER,
+    email TEXT,
+    ip TEXT,
+    user_agent TEXT,
+    metadata TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  )`)
+
+  const sesionesColumns = await dbAll<{ name: string }>("PRAGMA table_info(sesiones)")
+  if (!sesionesColumns.some((c) => c.name === "fingerprint")) {
+    await dbExec("ALTER TABLE sesiones ADD COLUMN fingerprint TEXT")
   }
 }

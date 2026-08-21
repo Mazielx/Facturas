@@ -4,10 +4,29 @@ import { ensureSchema } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
 import { buildFacturasWorkbookBuffer, type ExcelColumn } from "@/lib/excel"
 import { APP_NAME } from "@/lib/brand"
+import {
+  checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
+  extractClientIp, extractUserAgent,
+  logSecurityEvent, secureErrorResponse,
+} from "@/lib/security"
 
 export async function GET(request: Request) {
   try {
     const tenant = await requireActiveTenant()
+
+    const ip = extractClientIp(request)
+    const userAgent = extractUserAgent(request)
+
+    // Rate limit exports
+    const rl = checkRateLimit(String(tenant.user.id), RATE_LIMITS.export)
+    if (!rl.allowed) {
+      await logSecurityEvent("rate_limited", { userId: tenant.user.id, ip, userAgent, metadata: { endpoint: "export" } })
+      return new Response(JSON.stringify({ error: "Demasiadas exportaciones. Espera unos minutos." }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", ...getRateLimitHeaders(rl) },
+      })
+    }
+
     await ensureSchema()
     if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
       return new Response(JSON.stringify({ error: "Se requiere un plan activo para exportar" }), {
@@ -71,6 +90,8 @@ export async function GET(request: Request) {
     `
 
     const facturas = await dbAll(query, args)
+
+    await logSecurityEvent("export_downloaded", { userId: tenant.user.id, ip, userAgent, metadata: { format, count: facturas.length } })
 
     if (format === "xlsx") {
       const columns: ExcelColumn[] = [
@@ -142,9 +163,10 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("Error exporting facturas:", error)
-    if (error instanceof Error && error.message.includes("No hay negocio")) {
+    const { message } = secureErrorResponse(error, "export")
+    if (message.includes("No hay negocio")) {
       return new Response(JSON.stringify({ error: "No hay negocio seleccionado" }), { status: 401, headers: { "Content-Type": "application/json" } })
     }
-    return new Response("Error al exportar", { status: 500 })
+    return new Response(JSON.stringify({ error: "Error al exportar" }), { status: 500, headers: { "Content-Type": "application/json" } })
   }
 }

@@ -923,6 +923,58 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
+### Entry 029: Security Hardening — Rate Limiting, Audit Logging, Production Hardening
+
+**Date:** 2026-08-20
+**Topic:** Complete security hardening — wire in-memory rate limiting, account lockout, HIBP password breach check, security audit logging, CORS headers, production error handling, admin protections
+**Time spent:** ~1.5 hours
+
+**What I learned:**
+- In-memory rate limiting with sliding window works on Vercel serverless because each invocation shares the same Node.js process (not truly ephemeral per-request). BUT on cold starts the store resets — acceptable tradeoff for this threat model
+- HIBP k-anonymity is elegant: you only send the first 5 chars of the SHA-1 hash, never the full password. Even if HIBP is down, it should fail open (don't block registration)
+- Account lockout should be email-based (not IP-based) because IPs can be shared behind NAT/VPN. Lockout should also reset after a quiet period
+- Password breach check should run on: register, password change, and password reset — all three entry points for new credentials
+- Session fingerprinting (IP + User-Agent hash) stored in the sessions table gives a detection signal for session theft, but should NOT hard-fail because legitimate users change IPs/User-Agents (mobile networks, browser updates). Log anomalies instead
+- Rate limiting needs different configs per endpoint: login (5/15min), register (3/hr), password change (3/hr), extract (5/5min), export (10/5min), API key (60/min)
+- Admin protection: prevent self-deletion, prevent self-role-downgrade, enforce minimum 1 active admin — these are business logic protections, not just auth checks
+- CORS on Next.js is done via `headers()` in `next.config.ts` — can set per-path. The API routes need `Access-Control-Allow-Credentials: true` for cookie-based auth from same-origin
+- Production error handling: `secureErrorResponse()` returns generic message in production, detailed in development — prevents stack trace leakage
+
+**The process:**
+1. Wired rate limiting into login, register, password change, extract, export, and all 4 v1 API routes
+2. Wired account lockout into login (email-based, 5 failures = 15min lock)
+3. Wired HIBP breach check into register and password change
+4. Wired security audit logging into all auth events, admin actions, API key usage, exports, file uploads
+5. Added admin protections: prevent self-deletion, prevent self-role-downgrade, enforce min 1 admin
+6. Hardened upload validation with magic byte checking (trust bytes, not MIME type)
+7. Added CORS headers to next.config.ts for `/api/*` paths
+8. Added `secureErrorResponse()` to all error handlers to prevent stack trace leakage in production
+9. Updated all v1 API routes with rate limiting + audit logging
+
+**Files modified:**
+- `src/app/api/auth/login/route.ts` — rate limit, lockout, breach check, fingerprint, audit
+- `src/app/api/auth/register/route.ts` — rate limit, breach check, fingerprint, audit
+- `src/app/api/auth/password/route.ts` — rate limit, breach check, audit
+- `src/app/api/auth/photo/route.ts` — magic byte validation, audit
+- `src/app/api/admin/usuarios/route.ts` — admin protections, audit
+- `src/app/api/extract/route.ts` — rate limit, audit
+- `src/app/api/facturas/export/route.ts` — rate limit, audit
+- `src/app/api/v1/facturas/route.ts` — rate limit, audit
+- `src/app/api/v1/facturas/[id]/route.ts` — rate limit, audit
+- `src/app/api/v1/facturas/export/route.ts` — rate limit, audit
+- `src/app/api/v1/stats/route.ts` — rate limit, audit
+- `next.config.ts` — CORS headers for `/api/*`
+
+**Mistakes I made:**
+- Initially forgot to add `secureErrorResponse` to the extract route's catch block — would have leaked error messages in production
+
+**Key insight:**
+> "Security hardening isn't about one big fix — it's about systematically wiring defense-in-depth across every entry point. Rate limiting, breach checking, audit logging, and error sanitization are not optional features — they're baseline requirements. The in-memory approach is imperfect for serverless but appropriate for the threat model (single-region, non-critical SaaS)."
+
+**Confidence level:** Can implement comprehensive security hardening with rate limiting, audit logging, breach detection, and production error handling across a full-stack Next.js application
+
+---
+
 ## Project Portfolio
 
 ### Project 1: Gobernanza (Learning Management System)
