@@ -1027,6 +1027,28 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
+### Entry 032: Pre-Launch Comprehensive Hardening — 23 More Fixes (67 Total)
+
+**Date:** 2026-08-24
+**Topic:** Full pre-launch audit and hardening. Fixed 5 HIGH, 8 MEDIUM, 10 LOW. Session fingerprinting now active, all console.error leaks plugged, dead code removed.
+**Time spent:** ~3 hours
+
+**What I learned:**
+- **Session fingerprinting without verification is security theater.** We spent time creating fingerprints at login and storing them, but never checked them. A stolen session cookie works from any device. The fix was simple — pass the current fingerprint to `getSessionUser()` and compare. Lesson: if you build a security control, verify it exists on every path that matters.
+- **Dead code is a security liability, not just clutter.** Functions like `esEmailAdmin`, `handleCors`, `getCorsHeaders` were shipped but never called. They created false confidence ("CORS is handled") while the actual code paths had no CORS protection. Delete dead security code aggressively.
+- **console.error with full error objects is an information disclosure vulnerability.** Error objects can contain tokens, PII, stack traces, database queries. Across 29 call sites, this was a massive leak surface. The `safeLogError` pattern (classify + truncate) is now mandatory.
+- **Global UNIQUE constraints in multi-tenant schemas cause silent data loss.** Tenant B uploads the same PDF as Tenant A → insert fails → silently dropped → user told "already processed." The proper fix is per-tenant uniqueness + graceful handling. In SQLite, you can't DROP CONSTRAINT, so the app-level handling is critical.
+- **Cookie maxAge must match session expiry.** Session expires in 7 days, but cookie lived 30 days = 23 days of a stale cookie that 404s on every request. Small mismatch, big user-facing bug.
+- **Rate limit headers had a bug.** `X-RateLimit-Limit` was sending `resetAt` timestamp instead of the max request count. The `checkRateLimit` function didn't expose `max` in its result. Added it.
+- **Substring matching for permissions is dangerous.** `permisos.includes("write")` matches `"read-write-all"`, `"write-only"`, etc. Exact match or explicit set membership is required.
+
+**Key insight:**
+> "The pre-launch security audit is where the gap between 'we did security' and 'we are secure' gets closed. Every dead code path, every unverified control, every raw error log is a gap. The audit found 23 issues that the initial pentest missed — not because they were hidden, but because the initial pass focused on injection/auth and missed logging, configuration, and dead code categories. A truly secure app needs multiple passes across different categories."
+
+**Confidence level:** Can perform comprehensive pre-launch security audits covering auth, data isolation, logging hygiene, configuration hardening, dead code removal, input validation, and supply chain. Can coordinate parallel fixes across 37 files simultaneously.
+
+---
+
 ## Project Portfolio
 
 ### Project 1: Gobernanza (Learning Management System)
