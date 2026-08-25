@@ -1027,7 +1027,40 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
-### Entry 032: Pre-Launch Comprehensive Hardening — 23 More Fixes (67 Total)
+### Entry 033: OAuth Hardening, Session Security & Log Sanitization (Final Launch Pass)
+
+**Date:** 2026-08-25
+**Topic:** Deep OAuth attack vector remediation + session hardening + supply chain + CSP hardening. Final pre-launch pass.
+**Time spent:** ~3 hours
+
+**What I learned:**
+- **OAuth state without nonce is security theater.** HMAC-signed state prevents tampering but NOT replay. Anyone who captures a state value (URL bar, Referer, browser history) can replay it for 15 minutes. The fix: embed a random `jti` nonce, store it in the DB, consume it on first verification. Reject replays. On Vercel serverless, DB is the only persistent store — in-memory nonce sets don't work across cold starts.
+- **Token exchange BEFORE state validation is a critical design flaw.** If the callback exchanges the code with Google before checking state, a malicious code gets consumed regardless of state validity. The state validation failure becomes irrelevant — the tokens are already issued. Fix: validate state first, exchange second. Always.
+- **OAuth fallback branches are attack surfaces.** When state is empty/invalid, the callback fell through to an "avatar-binding" branch that: (a) exchanged the attacker's code, (b) updated the victim's profile photo, (c) set the attacker's Gmail tokens in the victim's cookie. All without any state verification. Fix: remove the fallback entirely — no valid state = reject, no code exchange.
+- **Same error message for all auth failures is essential.** "Email not found" vs "Wrong password" enables account enumeration. Even timing differences (bcrypt on existing user vs no-op on non-existing) can leak this. Fix: always return "Credenciales invalidas", always execute bcrypt comparison path (even if user is null — use a dummy hash).
+- **Idle timeout is more important than absolute timeout.** 30-day absolute session is fine IF the session dies after 30 minutes of inactivity. A stolen cookie is only useful while the session is active. Fix: `last_activity_at` column, checked on every auth access, sliding window deletion.
+- **External scripts remove CSP weakness.** Moving two tiny inline scripts (theme-init, SW registration) to `/public/*.js` files eliminated both `unsafe-inline` and `unsafe-eval` from `script-src`. This closes XSS via injected `<script>` tags. The tradeoff: one extra HTTP request for theme initialization (cacheable).
+- **Profile photos need MIME validation at the byte level.** An attacker who controls a filename can put `evil.exe` as `user-1-photo.jpg`. Without magic byte validation, the server serves it as `image/jpeg`. With `nosniff` + magic byte check + allowlist, it's blocked.
+- **Email mismatch in OAuth binding is a real attack.** State says "connect email X" but attacker logs into Google as email Y. Without checking, email Y gets stored on the victim's tenant. Fix: compare Google's verified email against state.email, reject mismatches.
+
+**What was done:**
+1. V-34 CRITICAL: OAuth nonce (jti) + single-use enforcement via DB table
+2. V-43 HIGH: State validation moved before token exchange in callback
+3. V-44 HIGH: Removed avatar-binding fallback branch (no-state = reject)
+4. V-35 HIGH: OAuth email mismatch now rejected
+5. V-40 MEDIUM: Sessions reduced to 7 days + 30-min idle timeout
+6. V-39 MEDIUM: Login error messages unified + email normalized
+7. V-45 MEDIUM: All 37 console.error calls → safeLogError
+8. V-47: CSP hardened (removed unsafe-inline/unsafe-eval from script-src)
+9. V-48: Profile photo MIME validation + nosniff + private cache
+10. Supply chain: npm audit fix (5 CVEs) + Next.js 16.2→16.3.2 (3 CVEs) = 0 vulnerabilities
+
+**Key insight:**
+> "OAuth security is a chain: state generation → state transport → state verification → code exchange → token storage. Breaking ANY link compromises the whole chain. Our state was cryptographically strong (HMAC-SHA256) but lacked replay protection. Our verification was timing-safe but happened after the exchange. Our callback had a fallback path that bypassed everything. Each link needed to be independently validated."
+
+**Confidence level:** Can perform deep OAuth 2.0 security analysis, identify chain-of-custody breaks, implement nonce-based replay protection, and harden CSP from weak to strict. Can coordinate supply chain updates with zero breakage.
+
+---
 
 **Date:** 2026-08-24
 **Topic:** Full pre-launch audit and hardening. Fixed 5 HIGH, 8 MEDIUM, 10 LOW. Session fingerprinting now active, all console.error leaks plugged, dead code removed.
