@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         if (!negocio) break
         const to = typeof invoice.customer_email === "string" ? invoice.customer_email : negocio.email
         if (to) await notifyPaymentFailed(to, negocio.nombre)
-        console.warn(`[stripe] Pago de suscripcion fallido para negocio ${negocio.id} (${negocio.slug})`)
+        console.warn("[stripe] subscription payment failed")
         break
       }
       case "customer.subscription.deleted": {
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
         await updateNegocio(negocio.id, { plan_pagado_hasta: null, stripe_subscription_id: null })
         const to = negocio.email || process.env.ADMIN_EMAIL
         if (to) await notifySubscriptionCanceled(to, negocio.nombre)
-        console.warn(`[stripe] Suscripcion cancelada para negocio ${negocio.id} (${negocio.slug})`)
+        console.warn("[stripe] subscription canceled")
         break
       }
       default:

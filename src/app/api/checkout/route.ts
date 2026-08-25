@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireActiveTenant } from "@/lib/tenant"
 import { getPlanById } from "@/lib/plans"
 import { createCheckoutSession } from "@/lib/stripe"
+import { safeLogError } from "@/lib/security"
 
 export async function POST(request: Request) {
   let tenant: Awaited<ReturnType<typeof requireActiveTenant>>
@@ -31,8 +32,8 @@ export async function POST(request: Request) {
     })
     return NextResponse.json(result)
   } catch (error) {
-    const msg = error instanceof Error ? error.message : "Error desconocido"
-    console.error("Checkout error:", msg)
+    safeLogError("checkout", error)
+    const msg = error instanceof Error ? error.message : ""
     if (msg.includes("Stripe no configurado")) {
       return NextResponse.json({ error: "Pagos no configurados" }, { status: 503 })
     }

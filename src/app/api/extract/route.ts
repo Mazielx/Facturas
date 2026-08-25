@@ -9,7 +9,7 @@ import { google } from "googleapis"
 import {
   checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
   extractClientIp, extractUserAgent,
-  logSecurityEvent, secureErrorResponse,
+  logSecurityEvent, secureErrorResponse, safeLogError,
 } from "@/lib/security"
 
 export async function POST(request: Request) {
@@ -52,15 +52,13 @@ export async function POST(request: Request) {
   const allSkipped: Array<{ emailId: string; filename: string; reason: string; cuenta: string }> = []
   const allErrors: Array<{ emailId: string; filename: string; error: string; cuenta: string }> = []
 
-  console.log("EXTRACT_START:", { slug, cuentaCount: cuentas.length })
-
   async function processWithAuth(auth: ReturnType<typeof getAuthFromCuentaCorreo>, cuentaEmail: string) {
     let emailList
     try {
       emailList = await listEmailsWithAttachments(auth, 50)
     } catch (gmailError) {
       const msg = gmailError instanceof Error ? gmailError.message : "Error desconocido"
-      console.error(`Gmail list error [cuenta]:`, msg.includes("invalid_grant") ? "invalid_grant" : "list_error")
+      safeLogError("gmail_list", gmailError)
       if (msg.includes("invalid_grant") || msg.includes("Token has been expired or revoked")) {
         allErrors.push({ emailId: "", filename: "", error: "Tokens expirados o revocados", cuenta: cuentaEmail })
         return
@@ -81,7 +79,6 @@ export async function POST(request: Request) {
       )
 
       if (xmlAttachments.length === 0 || pdfAttachments.length === 0 || email.totalAttachmentCount !== 2) {
-        console.log(`SKIP email ${email.id}: ${email.totalAttachmentCount} adjuntos totales (xml=${xmlAttachments.length}, pdf=${pdfAttachments.length})`)
         continue
       }
 
@@ -123,7 +120,7 @@ export async function POST(request: Request) {
           }
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : "Error desconocido"
-          console.error(`Extract error [attachment]:`, errMsg.includes("invalid_grant") ? "invalid_grant" : "extraction_error")
+          safeLogError("extract_attachment", error)
           allErrors.push({ emailId: email.id, filename: attachment.filename, error: errMsg, cuenta: cuentaEmail })
         }
       }
@@ -156,10 +153,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // V-45 FIX: Don't log full error details (may contain sensitive extraction data)
-    console.log("EXTRACT_RESULT:", JSON.stringify({ processed: allProcessed.length, skipped: allSkipped.length, errors: allErrors.length }))
-
-    await logSecurityEvent("export_downloaded", { userId: tenant.user.id, ip, userAgent, metadata: { type: "extract", processed: allProcessed.length, skipped: allSkipped.length, errors: allErrors.length } })
+    await logSecurityEvent("export_downloaded", { userId: tenant.user.id, ip, userAgent, metadata: { type: "extract", processed: allProcessed.length, errors: allErrors.length } })
 
     return NextResponse.json({
       success: true,
@@ -171,7 +165,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const { message } = secureErrorResponse(error, "extract")
     // V-45 FIX: Don't log full error object (may contain tokens/credentials)
-    console.error("Error extracting invoices:", error instanceof Error ? error.message?.slice(0, 100) : "unknown")
+    safeLogError("extract_invoices", error)
     if (message.includes("invalid_grant") || message.includes("Token has been expired or revoked")) {
       return NextResponse.json(
         { error: "Gmail tokens expirados o revocados" },

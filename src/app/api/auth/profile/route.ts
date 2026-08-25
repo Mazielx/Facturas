@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUserWithFingerprint, verifyPassword, deleteAllUserSessions } from "@/lib/auth"
-import { sanitizeEmail, sanitizeString } from "@/lib/security"
+import { sanitizeEmail, sanitizeString, safeLogError } from "@/lib/security"
 import { dbGet, dbRun } from "@/db/client"
 
 const EMAIL_COOLDOWN_MONTHS = 6
@@ -93,8 +93,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ user: updated })
   } catch (error) {
-    // V-45: Don't log full error object (may contain sensitive data)
-    console.error("Error updating profile:", error instanceof Error ? error.message?.slice(0, 100) : "unknown")
+    safeLogError("profile_update", error)
     return NextResponse.json({ error: "Error al actualizar perfil" }, { status: 500 })
   }
 }
