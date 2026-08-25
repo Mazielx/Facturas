@@ -4,6 +4,7 @@ import { getPlanById } from "@/lib/plans"
 import { constructStripeEvent } from "@/lib/stripe"
 import { notifyPaymentFailed, notifySubscriptionCanceled } from "@/lib/notifications"
 import type Stripe from "stripe"
+import { safeLogError } from "@/lib/security"
 
 async function findNegocioForInvoice(invoice: Stripe.Invoice) {
   const subscriptionId =
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
         break
     }
   } catch (error) {
-    console.error("Webhook handler error:", error)
+    safeLogError("stripe_webhook", error)
     return NextResponse.json({ error: "Error procesando evento" }, { status: 500 })
   }
 

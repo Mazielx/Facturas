@@ -61,5 +61,7 @@ export interface ExtractionResult {
   success: boolean
   facturaId?: number
   error?: string
+  /** True when the attachment was skipped because it already exists (dedup) */
+  alreadyExists?: boolean
   datos?: FacturaCompleta
 }

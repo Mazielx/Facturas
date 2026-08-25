@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (!apiKey.permisos.includes("write")) {
+    if (!(apiKey.permisos === "write" || apiKey.permisos === "read,write")) {
       return NextResponse.json({ error: "Sin permisos de escritura" }, { status: 403 })
     }
 

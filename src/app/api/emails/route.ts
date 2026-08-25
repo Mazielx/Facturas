@@ -5,6 +5,7 @@ import { requireActiveTenant } from "@/lib/tenant"
 import { getCurrentUser } from "@/lib/auth"
 import { isAccesoCompleto } from "@/lib/paywall"
 import type { EmailListResponse } from "@/lib/types"
+import { safeLogError } from "@/lib/security"
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -61,7 +62,7 @@ export async function GET() {
         allEmails.push({ ...email, from: `${cuenta.email}: ${email.from}` })
       }
     } catch (err) {
-      console.error(`Error fetching emails for ${cuenta.email}:`, err)
+      safeLogError("emails_fetch_cuenta", err)
     }
   }
 

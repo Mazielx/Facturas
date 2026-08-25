@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getCurrentUser, verifyPassword, hashPassword, deleteAllUserSessions } from "@/lib/auth"
+import { getCurrentUserWithFingerprint, verifyPassword, hashPassword, deleteAllUserSessions } from "@/lib/auth"
 import { dbGet, dbRun } from "@/db/client"
 import {
   checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
@@ -10,7 +10,8 @@ import {
 
 export async function PUT(request: Request) {
   try {
-    const user = await getCurrentUser()
+    // V-27 FIX: Verify session fingerprint (IP + UA) on state-changing request
+    const user = await getCurrentUserWithFingerprint(request)
     if (!user) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }

@@ -2,6 +2,7 @@ import { requireActiveTenant } from "@/lib/tenant"
 import { dbGet } from "@/db/client"
 import { ensureSchema } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
+import { safeLogError } from "@/lib/security"
 
 export async function GET(
   _request: Request,
@@ -43,19 +44,20 @@ export async function GET(
       "image/gif": "image/gif",
     }
     const safeMime = SAFE_MIMES[adjunto.mime_type || ""] || "application/octet-stream"
+    const safeFilename = adjunto.filename.replace(/[\x00-\x1f\x7f"\\]/g, '_')
 
     return new Response(buffer, {
       headers: {
         "Content-Type": safeMime,
         "Content-Disposition": safeMime === "application/octet-stream"
-          ? `attachment; filename="${adjunto.filename}"`
-          : `inline; filename="${adjunto.filename}"`,
+          ? `attachment; filename="${safeFilename}"`
+          : `inline; filename="${safeFilename}"`,
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "private, max-age=0, must-revalidate",
       },
     })
   } catch (error) {
-    console.error("Error fetching adjunto:", error)
+    safeLogError("factura_adjunto", error)
     if (error instanceof Error && error.message.includes("No hay negocio")) {
       return new Response(JSON.stringify({ error: "No hay negocio seleccionado" }), { status: 401, headers: { "Content-Type": "application/json" } })
     }

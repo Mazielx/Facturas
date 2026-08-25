@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest"
-import { isAccesoCompleto, esEmailAdmin, planBloqueado, maxCuentasCorreo } from "@/lib/paywall"
+import { isAccesoCompleto, planBloqueado, maxCuentasCorreo } from "@/lib/paywall"
 
 const futuro = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 const pasado = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -32,16 +32,6 @@ describe("isAccesoCompleto", () => {
   it("does not bypass for other emails", () => {
     process.env.ADMIN_EMAIL = "ianmazielromo@gmail.com"
     expect(isAccesoCompleto({ email: "otro@gmail.com", role: "negocio", planPagadoHasta: null })).toBe(false)
-  })
-})
-
-describe("esEmailAdmin", () => {
-  // V-14: Always returns false now — deprecated
-  it("always returns false (deprecated)", () => {
-    process.env.ADMIN_EMAIL = "ianmazielromo@gmail.com"
-    expect(esEmailAdmin("ian.maziel.romo@gmail.com")).toBe(false)
-    expect(esEmailAdmin("IANMAZIELROMO@gmail.com")).toBe(false)
-    expect(esEmailAdmin("otro@gmail.com")).toBe(false)
   })
 })
 

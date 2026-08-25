@@ -1,18 +1,24 @@
 import { NextResponse } from "next/server"
-import { getCurrentUser, verifyPassword } from "@/lib/auth"
+import { getCurrentUserWithFingerprint, verifyPassword, deleteAllUserSessions } from "@/lib/auth"
+import { sanitizeEmail, sanitizeString } from "@/lib/security"
 import { dbGet, dbRun } from "@/db/client"
 
 const EMAIL_COOLDOWN_MONTHS = 6
 
 export async function PUT(request: Request) {
   try {
-    const user = await getCurrentUser()
+    // V-27 FIX: Verify session fingerprint (IP + UA) on state-changing request
+    const user = await getCurrentUserWithFingerprint(request)
     if (!user) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }
 
     const body = await request.json()
-    const { nombre, email, telefono, current_password } = body
+    // V-30 FIX: Sanitize inputs before use
+    const nombre = typeof body.nombre === "string" ? sanitizeString(body.nombre, 100) : ""
+    const email = typeof body.email === "string" ? body.email : null
+    const telefono = body.telefono ? sanitizeString(String(body.telefono), 20) : null
+    const current_password = body.current_password
 
     if (!nombre) {
       return NextResponse.json({ error: "Nombre es requerido" }, { status: 400 })
@@ -27,7 +33,17 @@ export async function PUT(request: Request) {
     let newEmail = current.email
     let emailChanged = false
 
-    if (email && email !== current.email) {
+    // V-30 FIX: Sanitize/validate the requested email before using it
+    let sanitizedNewEmail: string | null = null
+    if (email) {
+      const clean = sanitizeEmail(email)
+      if (!clean) {
+        return NextResponse.json({ error: "Email invalido" }, { status: 400 })
+      }
+      sanitizedNewEmail = clean
+    }
+
+    if (sanitizedNewEmail && sanitizedNewEmail !== current.email) {
       // V-31 FIX: Require current password for email change to prevent account takeover
       if (!current_password) {
         return NextResponse.json(
@@ -56,17 +72,19 @@ export async function PUT(request: Request) {
         }
       }
 
-      const existing = await dbGet<{ id: number }>("SELECT id FROM usuarios WHERE email = ? AND id != ?", { "1": email, "2": user.id })
+      const existing = await dbGet<{ id: number }>("SELECT id FROM usuarios WHERE email = ? AND id != ?", { "1": sanitizedNewEmail, "2": user.id })
       if (existing) {
         return NextResponse.json({ error: "Ya existe un usuario con ese email" }, { status: 409 })
       }
 
-      newEmail = email
+      newEmail = sanitizedNewEmail
       emailChanged = true
     }
 
     if (emailChanged) {
       await dbRun("UPDATE usuarios SET nombre = ?, email = ?, telefono = ?, email_changed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", { "1": nombre, "2": newEmail, "3": telefono || null, "4": user.id })
+      // V-31 FIX: Invalidate all OTHER sessions after email change
+      await deleteAllUserSessions(user.id, user.session?.id)
     } else {
       await dbRun("UPDATE usuarios SET nombre = ?, telefono = ?, updated_at = datetime('now') WHERE id = ?", { "1": nombre, "2": telefono || null, "3": user.id })
     }

@@ -2,6 +2,7 @@ import bcrypt from "bcrypt"
 import crypto from "crypto"
 import { cookies } from "next/headers"
 import { dbRun, dbGet } from "@/db/client"
+import { createSessionFingerprint, extractClientIp, extractUserAgent } from "@/lib/security"
 
 const SESSION_COOKIE = "session_id"
 // V-40 FIX: Reduced from 30 days to 7 days (NIST recommendation: max 30 days for low-risk, 7 days for financial)
@@ -72,9 +73,9 @@ export async function touchSession(sessionId: string): Promise<void> {
   ).catch(() => {})
 }
 
-export async function getSessionUser(sessionId: string): Promise<(Usuario & { session: Session }) | null> {
-  const row = await dbGet<Usuario & { session_id: string; session_expires_at: string; session_created_at: string; last_activity_at: string | null }>(
-    `SELECT u.*, s.id as session_id, s.expires_at as session_expires_at, s.created_at as session_created_at, s.last_activity_at
+export async function getSessionUser(sessionId: string, currentFingerprint?: string): Promise<(Usuario & { session: Session }) | null> {
+  const row = await dbGet<Usuario & { session_id: string; session_expires_at: string; session_created_at: string; last_activity_at: string | null; fingerprint: string | null }>(
+    `SELECT u.*, s.id as session_id, s.expires_at as session_expires_at, s.created_at as session_created_at, s.last_activity_at, s.fingerprint
      FROM usuarios u
      JOIN sesiones s ON s.usuario_id = u.id
      WHERE s.id = ? AND s.expires_at > datetime('now') AND u.activo = 1`,
@@ -82,6 +83,13 @@ export async function getSessionUser(sessionId: string): Promise<(Usuario & { se
   )
 
   if (!row) return null
+
+  // V-27 FIX: Verify session fingerprint — a stored fingerprint must match the
+  // current request's fingerprint (IP + UA hash). Mismatch = likely session hijack.
+  if (row.fingerprint && currentFingerprint && row.fingerprint !== currentFingerprint) {
+    await dbRun("DELETE FROM sesiones WHERE id = ?", { "1": sessionId })
+    return null
+  }
 
   // V-40 FIX: Check idle timeout — session expires after IDLE_TIMEOUT_MINUTES of inactivity
   if (row.last_activity_at) {
@@ -124,6 +132,19 @@ export async function getCurrentUser(): Promise<(Usuario & { session: Session })
   const sessionId = cookieStore.get(SESSION_COOKIE)?.value
   if (!sessionId) return null
   return getSessionUser(sessionId)
+}
+
+/**
+ * V-27 FIX: Like getCurrentUser, but verifies the session fingerprint against
+ * the current request (IP + User-Agent). If the stored fingerprint does not
+ * match, the session is deleted and null is returned.
+ */
+export async function getCurrentUserWithFingerprint(request: Request): Promise<(Usuario & { session: Session }) | null> {
+  const cookieStore = await cookies()
+  const sessionId = cookieStore.get(SESSION_COOKIE)?.value
+  if (!sessionId) return null
+  const fingerprint = createSessionFingerprint(extractClientIp(request), extractUserAgent(request))
+  return getSessionUser(sessionId, fingerprint)
 }
 
 export async function requireAuth(): Promise<Usuario & { session: Session }> {

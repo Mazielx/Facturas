@@ -3,6 +3,7 @@ import { getAllNegocios, createNegocio, updateUsuario } from "@/db"
 import { getActiveTenant } from "@/lib/tenant"
 import { getCurrentUser } from "@/lib/auth"
 import { isAccesoCompleto } from "@/lib/paywall"
+import { checkRateLimit, RATE_LIMITS, getRateLimitHeaders, extractClientIp, extractUserAgent, logSecurityEvent } from "@/lib/security"
 import { cookies } from "next/headers"
 
 export async function GET() {
@@ -11,10 +12,13 @@ export async function GET() {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 })
   }
 
-  const withPlanActivo = (n: { id: number; plan_pagado_hasta: string | null }) => ({
-    ...n,
-    planActivo: isAccesoCompleto({ email: user.email, role: user.role, planPagadoHasta: n.plan_pagado_hasta }),
-  })
+  const withPlanActivo = (n: { id: number; plan_pagado_hasta: string | null; stripe_customer_id?: string | null; stripe_subscription_id?: string | null }) => {
+    const { stripe_customer_id: _scid, stripe_subscription_id: _ssid, ...negocio } = n
+    return {
+      ...negocio,
+      planActivo: isAccesoCompleto({ email: user.email, role: user.role, planPagadoHasta: n.plan_pagado_hasta }),
+    }
+  }
 
   const userInfo = { id: user.id, email: user.email, nombre: user.nombre, role: user.role, profile_photo_url: user.profile_photo_url, email_changed_at: user.email_changed_at, telefono: user.telefono }
 
@@ -39,6 +43,25 @@ export async function POST(request: Request) {
   const user = await getCurrentUser()
   if (!user) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 })
+  }
+
+  const ip = extractClientIp(request)
+  const userAgent = extractUserAgent(request)
+
+  // H4 FIX: Rate limit tenant creation
+  const rl = checkRateLimit(String(user.id), RATE_LIMITS.admin)
+  if (!rl.allowed) {
+    await logSecurityEvent("rate_limited", { userId: user.id, ip, userAgent, metadata: { endpoint: "negocio_create" } })
+    return NextResponse.json(
+      { error: "Demasiadas solicitudes. Intenta de nuevo mas tarde." },
+      { status: 429, headers: getRateLimitHeaders(rl) }
+    )
+  }
+
+  // H4 FIX: Users already assigned to a negocio cannot create new ones
+  // (creation is only for the onboarding flow)
+  if (user.negocio_id) {
+    return NextResponse.json({ error: "Ya tienes un negocio asignado" }, { status: 403 })
   }
 
   const body = await request.json()

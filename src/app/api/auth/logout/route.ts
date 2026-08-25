@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { deleteSession } from "@/lib/auth"
 import { cookies } from "next/headers"
+import { safeLogError } from "@/lib/security"
 
 export async function POST() {
   try {
@@ -19,7 +20,7 @@ export async function POST() {
 
     return response
   } catch (error) {
-    console.error("Logout error:", error)
+    safeLogError("logout", error)
     return NextResponse.json(
       { error: "Error interno del servidor" },
       { status: 500 }

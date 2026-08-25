@@ -3,6 +3,7 @@ import { requireActiveTenant } from "@/lib/tenant"
 import { dbGet, dbAll, dbRun } from "@/db/client"
 import { ensureSchema } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
+import { sanitizeString, safeLogError } from "@/lib/security"
 
 export async function GET() {
   try {
@@ -17,7 +18,7 @@ export async function GET() {
     )
     return NextResponse.json(etiquetas)
   } catch (error) {
-    console.error("Error fetching etiquetas:", error)
+    safeLogError("etiquetas_list", error)
     if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
@@ -35,13 +36,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { nombre, color } = body
 
-    if (!nombre) {
+    const cleanNombre = sanitizeString(nombre ?? "", 50)
+    if (cleanNombre.length < 1) {
       return NextResponse.json({ error: "Nombre requerido" }, { status: 400 })
+    }
+
+    if (color !== undefined && color !== null && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+      return NextResponse.json({ error: "Color invalido. Debe ser un hex de 6 digitos (ej: #6b7280)" }, { status: 400 })
     }
 
     const existing = await dbGet(
       "SELECT id FROM etiquetas WHERE nombre = ? AND negocio_id = ?",
-      { "1": nombre, "2": tenant.negocio.id }
+      { "1": cleanNombre, "2": tenant.negocio.id }
     )
     if (existing) {
       return NextResponse.json({ error: "La etiqueta ya existe" }, { status: 409 })
@@ -49,16 +55,16 @@ export async function POST(req: NextRequest) {
 
     const result = await dbRun(
       "INSERT INTO etiquetas (nombre, color, negocio_id) VALUES (?, ?, ?)",
-      { "1": nombre, "2": color || "#6b7280", "3": tenant.negocio.id }
+      { "1": cleanNombre, "2": color || "#6b7280", "3": tenant.negocio.id }
     )
 
     return NextResponse.json({
       id: result.lastInsertRowid,
-      nombre,
+      nombre: cleanNombre,
       color: color || "#6b7280",
     }, { status: 201 })
   } catch (error) {
-    console.error("Error creating etiqueta:", error)
+    safeLogError("etiquetas_create", error)
     if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
@@ -94,7 +100,7 @@ export async function DELETE(req: NextRequest) {
     )
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error deleting etiqueta:", error)
+    safeLogError("etiquetas_delete", error)
     if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }

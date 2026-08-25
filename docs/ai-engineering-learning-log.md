@@ -1136,4 +1136,27 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 
 ---
 
-*Last updated: 2026-08-19*
+## 2026-08-24 — Pre-launch security/quality audit (facturas)
+
+**Insight:** Full-codebase audits surface "fixed but not finished" patterns: `verifySessionFingerprint` exists and fingerprints are stored at login, but no request path ever verifies them. Same with the global `UNIQUE(adjunto_hash)` left in schema.ts after adding the per-tenant index — app code now works around a constraint that should have been migrated away.
+**Lesson:** After each V-fix, grep for both halves of the fix (creation AND enforcement) before marking it done.
+
+---
+
+*Last updated: 2026-08-24*
+
+---
+
+## 2026-08-24 — MEDIUM/LOW security fixes batch (facturas)
+
+**What:** Executed M3 (admin/usuarios role whitelist + PUT rate limiting), M6 (API key permisos exact match), L1/L2/L5/L7/L8/L9/L10/L13.
+**Mistake fixed:** `src/lib/security.ts` was truncated mid-function (`safeLogError` missing closing brace) in the uncommitted working tree — tsc caught it as TS1005. Also: my first `esEmailAdmin` grep only covered `src/`, missing that a test file still imported it; grep scope must include tests/docs when deleting exports.
+**Lesson:** After removing exports, run `tsc --noEmit` immediately — it is the authoritative "is anything still referencing this" check, faster and more reliable than manual greps.
+
+---
+
+## 2026-08-24 — V-45 rollout: safeLogError across API routes (facturas)
+
+**What:** Replaced raw `console.error("...", error)` calls (full error objects) with `safeLogError(context, error)` across all route files under `src/app/api/`, plus `secureErrorResponse` now delegates to `safeLogError` internally instead of double-logging the raw error. PII fix: `/api/emails` no longer logs `cuenta.email`.
+**Mistake fixed:** First `tsc --noEmit` run failed with TS1128 at security.ts EOF — file changed on disk mid-run (concurrent session in same working tree); brace-depth re-check was balanced and second run passed clean. Lesson: when multiple agents share a working tree, treat one-off syntax errors at EOF as possible read/write races, not real code bugs — verify before "fixing".
+**Pattern:** Context strings follow the existing `secureErrorResponse` house style: short snake_case operation names (`facturas_stats`, `api_keys_toggle`). Merge new symbols into an existing `@/lib/security` import rather than adding a duplicate import line.

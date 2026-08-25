@@ -4,7 +4,7 @@ import { dbAll } from "@/db/client"
 import {
   checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
   extractClientIp, extractUserAgent,
-  logSecurityEvent, secureErrorResponse,
+  logSecurityEvent, secureErrorResponse, safeLogError,
 } from "@/lib/security"
 
 export async function POST(request: Request) {
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       },
     })
   } catch (error) {
-    console.error("Backup error:", error)
+    safeLogError("backup", error)
     return NextResponse.json({ error: "Error al crear backup" }, { status: 500 })
   }
 }

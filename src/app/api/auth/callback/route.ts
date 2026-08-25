@@ -64,7 +64,7 @@ export async function GET(request: Request) {
             userId: currentUser.id, ip, userAgent,
             metadata: { expected: verifiedState.email, got: email }
           })
-          return NextResponse.redirect(new URL(`/empresa?error=email_mismatch&expected=${encodeURIComponent(verifiedState.email)}`, request.url))
+          return NextResponse.redirect(new URL("/empresa?error=email_mismatch", request.url))
         }
         const photoUrl = googleInfo?.picture || null
         const tokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null
@@ -85,7 +85,9 @@ export async function GET(request: Request) {
     }
 
     if (verifiedState.kind === "login") {
-      // V-44 FIX: Login flow — exchange tokens, update profile photo ONLY, set gmail_tokens cookie
+      // V-44 FIX: Login flow — exchange tokens, update profile photo ONLY.
+      // H3 FIX: Do NOT set a gmail_tokens cookie — nothing reads it server-side
+      // and it exposed the full Google token set (incl. refresh_token).
       const tokens = await getTokensFromCode(code)
 
       if (tokens.access_token) {
@@ -95,19 +97,8 @@ export async function GET(request: Request) {
         }
       }
 
-      const encoded = encodeURIComponent(JSON.stringify(tokens))
-      const origin = new URL(request.url).origin
-      const response = NextResponse.redirect(new URL("/dashboard", origin))
-      response.cookies.set("gmail_tokens", encoded, {
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7,
-        sameSite: "lax",
-        secure: true,
-        httpOnly: true,
-      })
-
       await logSecurityEvent("oauth_login_completed", { userId: currentUser.id, ip, userAgent })
-      return response
+      return NextResponse.redirect(new URL("/dashboard", request.url))
     }
 
     // Unknown state kind — should not reach here

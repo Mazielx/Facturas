@@ -49,6 +49,7 @@ export async function POST(request: Request) {
   }
 
   const allProcessed: Array<{ emailId: string; filename: string; facturaId: number; cuenta: string }> = []
+  const allSkipped: Array<{ emailId: string; filename: string; reason: string; cuenta: string }> = []
   const allErrors: Array<{ emailId: string; filename: string; error: string; cuenta: string }> = []
 
   console.log("EXTRACT_START:", { slug, cuentaCount: cuentas.length })
@@ -114,6 +115,9 @@ export async function POST(request: Request) {
 
           if (extractionResult.success) {
             allProcessed.push({ emailId: email.id, filename: attachment.filename, facturaId: extractionResult.facturaId!, cuenta: cuentaEmail })
+          } else if (extractionResult.alreadyExists) {
+            // V-31c FIX: Cross-tenant dedup hits are skipped, not errors
+            allSkipped.push({ emailId: email.id, filename: attachment.filename, reason: extractionResult.error || "Archivo ya procesado", cuenta: cuentaEmail })
           } else {
             allErrors.push({ emailId: email.id, filename: attachment.filename, error: extractionResult.error || "Error desconocido", cuenta: cuentaEmail })
           }
@@ -153,15 +157,16 @@ export async function POST(request: Request) {
     }
 
     // V-45 FIX: Don't log full error details (may contain sensitive extraction data)
-    console.log("EXTRACT_RESULT:", JSON.stringify({ processed: allProcessed.length, errors: allErrors.length }))
+    console.log("EXTRACT_RESULT:", JSON.stringify({ processed: allProcessed.length, skipped: allSkipped.length, errors: allErrors.length }))
 
-    await logSecurityEvent("export_downloaded", { userId: tenant.user.id, ip, userAgent, metadata: { type: "extract", processed: allProcessed.length, errors: allErrors.length } })
+    await logSecurityEvent("export_downloaded", { userId: tenant.user.id, ip, userAgent, metadata: { type: "extract", processed: allProcessed.length, skipped: allSkipped.length, errors: allErrors.length } })
 
     return NextResponse.json({
       success: true,
       processed: allProcessed.length,
+      skipped: allSkipped.length,
       errors: allErrors.length,
-      details: { processed: allProcessed, errors: allErrors },
+      details: { processed: allProcessed, skipped: allSkipped, errors: allErrors },
     })
   } catch (error) {
     const { message } = secureErrorResponse(error, "extract")

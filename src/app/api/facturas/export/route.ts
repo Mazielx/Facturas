@@ -7,7 +7,7 @@ import { APP_NAME } from "@/lib/brand"
 import {
   checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
   extractClientIp, extractUserAgent,
-  logSecurityEvent, secureErrorResponse,
+  logSecurityEvent, secureErrorResponse, safeLogError,
 } from "@/lib/security"
 
 export async function GET(request: Request) {
@@ -166,7 +166,7 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
-    console.error("Error exporting facturas:", error)
+    safeLogError("export", error)
     const { message } = secureErrorResponse(error, "export")
     if (message.includes("No hay negocio")) {
       return new Response(JSON.stringify({ error: "No hay negocio seleccionado" }), { status: 401, headers: { "Content-Type": "application/json" } })

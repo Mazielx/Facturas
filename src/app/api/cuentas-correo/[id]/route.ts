@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { getCuentaCorreoById, deleteCuentaCorreo, getNegocioById } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
+import { safeLogError } from "@/lib/security"
 
 export async function DELETE(
   _request: Request,
@@ -44,7 +45,7 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error("Error deleting cuenta correo:", error)
+    safeLogError("cuentas_correo_delete", error)
     return NextResponse.json({ error: "Error al desconectar cuenta" }, { status: 500 })
   }
 }

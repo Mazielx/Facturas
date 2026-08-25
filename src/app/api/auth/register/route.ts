@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    const maxAge = 30 * 24 * 60 * 60
+    const maxAge = 7 * 24 * 60 * 60
     response.cookies.set("session_id", session.id, {
       path: "/",
       maxAge,

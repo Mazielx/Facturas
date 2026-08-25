@@ -44,6 +44,7 @@ export interface RateLimitConfig {
 
 export interface RateLimitResult {
   allowed: boolean
+  max: number
   remaining: number
   resetAt: number
 }
@@ -58,20 +59,20 @@ export function checkRateLimit(
 
   if (!entry || entry.resetAt <= now) {
     rateLimitStore.set(key, { count: 1, resetAt: now + config.windowMs })
-    return { allowed: true, remaining: config.max - 1, resetAt: now + config.windowMs }
+    return { allowed: true, max: config.max, remaining: config.max - 1, resetAt: now + config.windowMs }
   }
 
   entry.count++
   if (entry.count > config.max) {
-    return { allowed: false, remaining: 0, resetAt: entry.resetAt }
+    return { allowed: false, max: config.max, remaining: 0, resetAt: entry.resetAt }
   }
 
-  return { allowed: true, remaining: config.max - entry.count, resetAt: entry.resetAt }
+  return { allowed: true, max: config.max, remaining: config.max - entry.count, resetAt: entry.resetAt }
 }
 
 export function getRateLimitHeaders(result: RateLimitResult): Record<string, string> {
   return {
-    "X-RateLimit-Limit": String(result.resetAt),
+    "X-RateLimit-Limit": String(result.max),
     "X-RateLimit-Remaining": String(result.remaining),
     "X-RateLimit-Reset": String(Math.ceil(result.resetAt / 1000)),
   }
@@ -430,64 +431,11 @@ export function validateFileContent(
 
 
 // ============================================================================
-// CORS
-// ============================================================================
-
-export function getCorsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigins = [
-    process.env.APP_URL,
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
-    "https://facturas-sigma.vercel.app",
-  ].filter(Boolean) as string[]
-
-  const headers: Record<string, string> = {
-    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-    "Access-Control-Max-Age": "86400",
-  }
-
-  if (origin && allowedOrigins.includes(origin)) {
-    headers["Access-Control-Allow-Origin"] = origin
-    headers["Vary"] = "Origin"
-  }
-
-  return headers
-}
-
-export function handleCors(request: Request): { allowed: boolean; headers: Record<string, string> } {
-  const origin = request.headers.get("origin")
-
-  // OPTIONS requests are always preflight
-  if (request.method === "OPTIONS") {
-    return { allowed: true, headers: getCorsHeaders(origin) }
-  }
-
-  // For non-preflight requests, check origin for state-changing methods
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
-    const allowedOrigins = [
-      process.env.APP_URL,
-      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
-      "https://facturas-sigma.vercel.app",
-    ].filter(Boolean) as string[]
-
-    // Same-origin requests (no Origin header) are allowed
-    if (!origin) return { allowed: true, headers: {} }
-
-    if (!allowedOrigins.includes(origin)) {
-      return { allowed: false, headers: getCorsHeaders(null) }
-    }
-  }
-
-  return { allowed: true, headers: getCorsHeaders(origin) }
-}
-
-
-// ============================================================================
 // ERROR RESPONSE — Never leak internals
 // ============================================================================
 
 export function secureErrorResponse(error: unknown, context: string): { message: string; status: number } {
-  console.error(`[${context}]`, error)
+  safeLogError(context, error)
 
   // In production, never expose error details
   if (process.env.NODE_ENV === "production") {
@@ -501,17 +449,22 @@ export function secureErrorResponse(error: unknown, context: string): { message:
 
 
 // ============================================================================
-// REQUEST SIZE LIMITS
+// V-45: SAFE ERROR LOGGING — prevents leaking sensitive data in error objects
 // ============================================================================
 
-export function checkRequestSize(request: Request, maxBytes: number): boolean {
-  const contentLength = request.headers.get("content-length")
-  if (contentLength && parseInt(contentLength, 10) > maxBytes) return false
-  return true
+/**
+ * Safe error logger — never logs full error objects (may contain tokens, PII, stack traces).
+ * Only logs a sanitized category code.
+ */
+export function safeLogError(context: string, error: unknown): void {
+  const msg = error instanceof Error ? error.message : "unknown"
+  // Truncate + classify — never log full error objects
+  const safe = msg.includes("invalid_grant") ? "invalid_grant"
+    : msg.includes("ECONNREFUSED") ? "connection_refused"
+    : msg.includes("SQLITE") ? "database_error"
+    : msg.includes("timeout") ? "timeout"
+    : msg.includes("auth") ? "auth_error"
+    : "error"
+  console.error(`[${context}] ${safe}`)
 }
 
-export const REQUEST_LIMITS = {
-  json: 1024 * 1024,        // 1MB for JSON bodies
-  upload: 10 * 1024 * 1024, // 10MB for file uploads
-  export: 0,                 // No limit for exports (GET)
-} as const

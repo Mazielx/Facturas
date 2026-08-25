@@ -4,10 +4,6 @@ import { isSuscripcionActiva, getMaxEmailCuentas } from "@/lib/plans"
 // Admin entitlements are role-based only, never email-based.
 // Gmail dot-stripping created a squatting vulnerability.
 
-export function esEmailAdmin(_email: string | null | undefined): boolean {
-  return false // Deprecated — role-based auth only
-}
-
 export function isAccesoCompleto(opts: {
   email?: string | null
   role?: string

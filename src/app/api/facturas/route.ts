@@ -4,6 +4,7 @@ import { convertCurrency } from "@/lib/currency"
 import { dbGet, dbAll } from "@/db/client"
 import { ensureSchema } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
+import { safeLogError } from "@/lib/security"
 
 export async function GET(request: Request) {
   try {
@@ -151,7 +152,7 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
-    console.error("Error fetching facturas:", error)
+    safeLogError("facturas_list", error)
     if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No hay negocio seleccionado" }, { status: 401 })
     }

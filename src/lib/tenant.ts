@@ -1,6 +1,6 @@
 import { cookies } from "next/headers"
 import { getNegocioBySlug, getNegocioById, type Negocio } from "@/db"
-import { getCurrentUser, type Usuario, type Session } from "@/lib/auth"
+import { getCurrentUser, getCurrentUserWithFingerprint, type Usuario, type Session } from "@/lib/auth"
 
 const COOKIE_NAME = "negocio_slug"
 
@@ -10,13 +10,14 @@ export interface AuthenticatedTenant {
   user: Usuario & { session: Session }
 }
 
-export async function getActiveTenant(): Promise<AuthenticatedTenant | null> {
+export async function getActiveTenant(request?: Request): Promise<AuthenticatedTenant | null> {
   const cookieStore = await cookies()
   const slug = cookieStore.get(COOKIE_NAME)?.value
 
   if (!slug) return null
 
-  const user = await getCurrentUser()
+  // V-27 FIX: When a request is provided, verify the session fingerprint (IP + UA)
+  const user = request ? await getCurrentUserWithFingerprint(request) : await getCurrentUser()
   if (!user) return null
 
   const negocio = await getNegocioBySlug(slug)
@@ -29,8 +30,8 @@ export async function getActiveTenant(): Promise<AuthenticatedTenant | null> {
   return { negocio, slug, user }
 }
 
-export async function requireActiveTenant(): Promise<AuthenticatedTenant> {
-  const tenant = await getActiveTenant()
+export async function requireActiveTenant(request?: Request): Promise<AuthenticatedTenant> {
+  const tenant = await getActiveTenant(request)
   if (!tenant) {
     throw new Error("No hay negocio seleccionado o no autorizado")
   }

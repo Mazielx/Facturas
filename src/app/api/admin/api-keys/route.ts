@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
 import { createApiKey, getApiKeysByNegocio, deleteApiKey, toggleApiKey } from "@/lib/api-auth"
 import { getAllNegocios } from "@/db"
+import { safeLogError } from "@/lib/security"
 
 export async function GET() {
   try {
@@ -20,7 +21,7 @@ export async function GET() {
 
     return NextResponse.json(allKeys)
   } catch (error) {
-    console.error("Error fetching API keys:", error)
+    safeLogError("api_keys_list", error)
     if (error instanceof Error && error.message === "No autenticado") {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
       key_preview: key.substring(0, 11) + "****",
     }, { status: 201 })
   } catch (error) {
-    console.error("Error creating API key:", error)
+    safeLogError("api_keys_create", error)
     if (error instanceof Error && error.message === "No autenticado") {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }
@@ -76,7 +77,7 @@ export async function DELETE(req: NextRequest) {
     await deleteApiKey(Number(id))
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error deleting API key:", error)
+    safeLogError("api_keys_delete", error)
     if (error instanceof Error && error.message === "No autenticado") {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }
@@ -100,7 +101,7 @@ export async function PUT(req: NextRequest) {
     await toggleApiKey(id, activa)
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error toggling API key:", error)
+    safeLogError("api_keys_toggle", error)
     if (error instanceof Error && error.message === "No autenticado") {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }

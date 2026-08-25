@@ -569,6 +569,16 @@ Run these before shipping a feature that real customers will touch:
 - "After a logo redesign, grep the entire codebase for every logo instance (inline SVGs, `<img>` tags, manifest.json, OG images) before shipping — miss one and the brand looks inconsistent"
 - "Regenerate PNGs from updated SVG via sharp script, then update all inline React SVG components with matching viewBox and strokeWidth ratios"
 
+### 2026-08-24 — Security audit prompt pattern
+- "Read every file under src/app/api/ and src/lib/. For each: auth? rate limit? console leaks? error leakage? input validation? tenant scoping?" — forcing per-file checklist prevents sampling bias (auditing only "scary" files).
+- Follow-up cross-cutting greps find dead security code: grep each export of the security module for callers; unused validators/handlers = unfinished fixes.
+
 ---
 
-*Last updated: 2026-08-19*
+### 2026-08-24 — Batch security-fix prompt pattern
+Effective prompt shape: numbered fix list with file path + exact line numbers + exact replacement code per item, ending with a single verification command. Let the executor verify assumptions ("verify this is correct; if not, fix it") instead of pre-deciding. Worked well for applying an external audit report without drift.
+
+*Last updated: 2026-08-24*
+
+### 2026-08-24 — Bulk mechanical refactor prompt pattern
+Effective prompt shape for cross-file refactors: "Replace ALL `X` with `Y` in <dir>" + exact function signature + per-file occurrence counts + one exception list ("DO NOT touch: ...") + special-case instructions inline ("ALSO remove the PII from this log") + single verification command (`npx tsc --noEmit`). Occurrence counts per file let the executor self-check completeness via grep.

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth"
 import { getCuentasCorreo, getNegocioById } from "@/db"
 import { isEmailInstitucional } from "@/lib/email-validation"
 import { isAccesoCompleto, maxCuentasCorreo } from "@/lib/paywall"
+import { safeLogError } from "@/lib/security"
 
 export async function GET() {
   try {
@@ -41,7 +42,7 @@ export async function GET() {
       planActivo: accesoCompleto,
     })
   } catch (error) {
-    console.error("Error fetching cuentas correo:", error)
+    safeLogError("cuentas_correo_list", error)
     return NextResponse.json({ error: "Error al obtener cuentas" }, { status: 500 })
   }
 }
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
       authUrl: `/api/auth/cuenta-correo?email=${encodeURIComponent(email)}&negocioId=${negocio.id}`,
     })
   } catch (error) {
-    console.error("Error creating cuenta correo:", error)
+    safeLogError("cuentas_correo_create", error)
     return NextResponse.json({ error: "Error al conectar cuenta" }, { status: 500 })
   }
 }

@@ -40,6 +40,8 @@ const securityHeaders = [
       "font-src 'self'",
       "connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://gmail.googleapis.com",
       "frame-ancestors 'self'",
+      "object-src 'none'",
+      "frame-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
     ].join("; "),

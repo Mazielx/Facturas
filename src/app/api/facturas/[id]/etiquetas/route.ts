@@ -3,6 +3,7 @@ import { requireActiveTenant } from "@/lib/tenant"
 import { dbGet, dbAll, dbRun } from "@/db/client"
 import { ensureSchema } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
+import { safeLogError } from "@/lib/security"
 
 export async function GET(
   req: NextRequest,
@@ -35,7 +36,7 @@ export async function GET(
 
     return NextResponse.json(etiquetas)
   } catch (error) {
-    console.error("Error fetching factura etiquetas:", error)
+    safeLogError("factura_etiquetas_list", error)
     return NextResponse.json({ error: "Error interno" }, { status: 500 })
   }
 }
@@ -45,7 +46,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tenant = await requireActiveTenant()
+    // V-27 FIX: Verify session fingerprint (IP + UA) on state-changing request
+    const tenant = await requireActiveTenant(req)
     await ensureSchema()
     if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
       return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
@@ -92,7 +94,7 @@ export async function POST(
 
     return NextResponse.json({ success: true }, { status: 201 })
   } catch (error) {
-    console.error("Error adding etiqueta to factura:", error)
+    safeLogError("factura_etiqueta_add", error)
     return NextResponse.json({ error: "Error interno" }, { status: 500 })
   }
 }
@@ -102,7 +104,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tenant = await requireActiveTenant()
+    // V-27 FIX: Verify session fingerprint (IP + UA) on state-changing request
+    const tenant = await requireActiveTenant(req)
     await ensureSchema()
     if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
       return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
@@ -131,7 +134,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error removing etiqueta from factura:", error)
+    safeLogError("factura_etiqueta_remove", error)
     return NextResponse.json({ error: "Error interno" }, { status: 500 })
   }
 }

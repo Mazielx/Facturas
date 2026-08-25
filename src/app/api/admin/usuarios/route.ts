@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth"
 import { getAllUsuarios, createUsuario as dbCreateUsuario, updateUsuario, deleteUsuario, getUsuarioByEmail, getAllNegocios } from "@/db"
 import { hashPassword } from "@/lib/auth"
-import { sanitizeEmail, sanitizeString, validatePasswordStrength, extractClientIp, extractUserAgent, logSecurityEvent } from "@/lib/security"
+import { checkRateLimit, RATE_LIMITS, getRateLimitHeaders, sanitizeEmail, sanitizeString, validatePasswordStrength, extractClientIp, extractUserAgent, logSecurityEvent, safeLogError } from "@/lib/security"
 
 export async function GET() {
   try {
@@ -16,7 +16,7 @@ export async function GET() {
     if (error instanceof Error && error.message === "No autorizado") {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
-    console.error("Error getting usuarios:", error)
+    safeLogError("usuarios_list", error)
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
@@ -41,6 +41,10 @@ export async function POST(req: NextRequest) {
     const cleanNombre = sanitizeString(nombre, 100)
     if (cleanNombre.length < 1) {
       return NextResponse.json({ error: "Nombre requerido" }, { status: 400 })
+    }
+
+    if (role !== undefined && role !== "admin" && role !== "negocio") {
+      return NextResponse.json({ error: "Rol invalido. Debe ser 'admin' o 'negocio'" }, { status: 400 })
     }
 
     const strength = validatePasswordStrength(password)
@@ -76,7 +80,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof Error && error.message === "No autorizado") {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
-    console.error("Error creating usuario:", error)
+    safeLogError("usuarios_create", error)
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
@@ -86,11 +90,39 @@ export async function PUT(req: NextRequest) {
     const admin = await requireAdmin()
     const ip = extractClientIp(req)
     const userAgent = extractUserAgent(req)
+
+    // Rate limit admin mutations
+    const rl = checkRateLimit(`admin:${admin.id}`, RATE_LIMITS.admin)
+    if (!rl.allowed) {
+      await logSecurityEvent("rate_limited", { userId: admin.id, ip, userAgent, metadata: { endpoint: "admin_update_user" } })
+      return NextResponse.json(
+        { error: "Demasiadas peticiones. Intenta de nuevo mas tarde." },
+        { status: 429, headers: getRateLimitHeaders(rl) }
+      )
+    }
+
     const body = await req.json()
     const { id, email, nombre, role, negocio_id, activo } = body
 
     if (!id) {
       return NextResponse.json({ error: "ID requerido" }, { status: 400 })
+    }
+
+    if (role !== undefined && role !== "admin" && role !== "negocio") {
+      return NextResponse.json({ error: "Rol invalido. Debe ser 'admin' o 'negocio'" }, { status: 400 })
+    }
+
+    if (activo !== undefined && activo !== 0 && activo !== 1) {
+      return NextResponse.json({ error: "'activo' debe ser 0 o 1" }, { status: 400 })
+    }
+
+    // Validate negocio_id exists if provided
+    if (negocio_id) {
+      const { getNegocioById } = await import("@/db")
+      const negocio = await getNegocioById(negocio_id)
+      if (!negocio) {
+        return NextResponse.json({ error: "Negocio no encontrado" }, { status: 400 })
+      }
     }
 
     // Prevent admin from deactivating themselves
@@ -135,7 +167,7 @@ export async function PUT(req: NextRequest) {
     if (error instanceof Error && error.message === "No autorizado") {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
-    console.error("Error updating usuario:", error)
+    safeLogError("usuarios_update", error)
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
@@ -181,7 +213,7 @@ export async function DELETE(req: NextRequest) {
     if (error instanceof Error && error.message === "No autorizado") {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
-    console.error("Error deleting usuario:", error)
+    safeLogError("usuarios_delete", error)
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }

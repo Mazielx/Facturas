@@ -250,7 +250,7 @@ Verify what's actually failing and fix it.
    - What happened: The owner's admin email was configured as `ianmazielromo@gmail.com` but they log in as `ian.maziel.romo@gmail.com` — a naive comparison would silently strip their access
    - Why it happened: Gmail ignores dots in local parts
    - What I learned: Canonicalize emails (strip dots for gmail/googlemail) before comparing the admin exemption
-   - How I avoid it now: `canonicalEmail()` + `esEmailAdmin()` in `src/lib/paywall.ts`, covered by unit tests
+   - How I avoid it now: Admin entitlements are role-based only (V-14) — email matching was removed entirely from `src/lib/paywall.ts`, covered by unit tests
 
 7. **Cramped Excel exports**
    - What happened: The XLSX export piled all text into narrow default columns — unusable at a glance
@@ -453,7 +453,19 @@ Verify what's actually failing and fix it.
 4. **Update regularly** - Shows active learning
 5. **Keep it concise** - Recruiters skim, not read
 
+### Milestone 2026-08-24 — Pre-launch audit (facturas/Grydex)
+- Audited all 35 API routes + 22 lib files against a 7-point security checklist (authn/z, rate limiting, log hygiene, error leakage, validation, tenant isolation, misc).
+- Key outcomes: identified unverified session fingerprints, cross-tenant UNIQUE(adjunto_hash) constraint causing silent data loss, OAuth refresh tokens stored in a cookie nothing reads, and ~10 dead-code exports in security.ts.
+
+### Milestone 2026-08-24 — MEDIUM/LOW security fix batch (facturas)
+- Shipped: admin role whitelist + rate-limited PUT (`admin/usuarios`), exact-match API key permissions, `X-RateLimit-Limit` header now reports max instead of resetAt, 7-day session cookies, dead-code removal from security.ts/paywall.ts, Content-Disposition filename sanitization, Stripe IDs stripped from `/api/negocios`, etiquetas input validation, OAuth redirect no longer echoes expected email, CSP `object-src`/`frame-src 'none'`.
+- Verified with `npx tsc --noEmit` (clean) and vitest paywall suite (10/10).
+
+### Milestone 2026-08-24 — Log hygiene: safeLogError everywhere (facturas)
+- Replaced every raw `console.error` that dumped full error objects across `src/app/api/**` with `safeLogError(context, error)` (sanitized category codes only); `secureErrorResponse` reuses it internally. Removed an email address from a Gmail-account log line.
+- Verified with `npx tsc --noEmit` (clean).
+
 ---
 
 *Template by: Ian Maziel*
-*Last updated: 2026-08-19*
+*Last updated: 2026-08-24*

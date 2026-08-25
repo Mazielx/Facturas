@@ -168,9 +168,10 @@ export async function processAttachment(
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Error desconocido"
     // V-31c FIX: Handle global UNIQUE(adjunto_hash) constraint violation gracefully
-    // If another tenant already has this exact hash, treat as "already processed"
+    // If another tenant already has this exact hash, report as NOT success — the
+    // caller routes it to the "skipped" list instead of counting a phantom invoice.
     if (errorMsg.includes("UNIQUE constraint failed") && errorMsg.includes("adjunto_hash")) {
-      return { success: true, facturaId: 0, error: "Archivo ya procesado por otro usuario" }
+      return { success: false, error: "Archivo ya procesado por otro usuario", alreadyExists: true }
     }
     await insertLog(emailId, filename, "error", errorMsg)
     return { success: false, error: errorMsg }

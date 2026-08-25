@@ -3,6 +3,7 @@ import { requireActiveTenant } from "@/lib/tenant"
 import { dbRun } from "@/db/client"
 import { ensureSchema } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
+import { safeLogError } from "@/lib/security"
 
 export async function PUT(
   req: NextRequest,
@@ -38,7 +39,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error updating revision:", error)
+    safeLogError("factura_revision", error)
     if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }

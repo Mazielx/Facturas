@@ -3,6 +3,7 @@ import { requireActiveTenant } from "@/lib/tenant"
 import { dbAll } from "@/db/client"
 import { ensureSchema } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
+import { safeLogError } from "@/lib/security"
 
 export async function GET(
   req: NextRequest,
@@ -28,7 +29,7 @@ export async function GET(
 
     return NextResponse.json(duplicados)
   } catch (error) {
-    console.error("Error fetching duplicados:", error)
+    safeLogError("facturas_duplicados", error)
     if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }

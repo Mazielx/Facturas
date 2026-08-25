@@ -94,7 +94,7 @@ export async function DELETE(
       )
     }
 
-    if (!apiKey.permisos.includes("write")) {
+    if (!(apiKey.permisos === "write" || apiKey.permisos === "read,write")) {
       return NextResponse.json({ error: "Sin permisos de escritura" }, { status: 403 })
     }
 

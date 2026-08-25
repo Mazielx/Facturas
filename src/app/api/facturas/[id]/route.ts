@@ -3,6 +3,7 @@ import { requireActiveTenant } from "@/lib/tenant"
 import { dbGet, dbAll, dbRun } from "@/db/client"
 import { ensureSchema } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
+import { safeLogError } from "@/lib/security"
 
 const VALID_ESTADOS = ["pendiente", "pagada", "cancelada"]
 
@@ -51,7 +52,7 @@ export async function GET(
 
     return NextResponse.json({ factura, lineas, adjuntos, etiquetas })
   } catch (error) {
-    console.error("Error fetching factura:", error)
+    safeLogError("facturas_get", error)
     if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No hay negocio seleccionado" }, { status: 401 })
     }
@@ -68,7 +69,8 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params
-    const tenant = await requireActiveTenant()
+    // V-27 FIX: Verify session fingerprint (IP + UA) on state-changing request
+    const tenant = await requireActiveTenant(request)
     await ensureSchema()
     const body = await request.json()
 
@@ -122,7 +124,7 @@ export async function PATCH(
     )
     return NextResponse.json({ factura: updated })
   } catch (error) {
-    console.error("Error updating factura:", error)
+    safeLogError("facturas_update", error)
     if (error instanceof Error && error.message.includes("No hay negocio")) {
       return NextResponse.json({ error: "No hay negocio seleccionado" }, { status: 401 })
     }
