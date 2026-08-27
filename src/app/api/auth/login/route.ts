@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const normalizedEmail = email.toLowerCase().trim()
 
     // Rate limit by IP + email combination (prevents targeted lockout DoS)
-    const rl = checkRateLimit(`${ip}:${normalizedEmail}`, RATE_LIMITS.login)
+    const rl = await checkRateLimit(`${ip}:${normalizedEmail}`, RATE_LIMITS.login)
     if (!rl.allowed) {
       await logSecurityEvent("rate_limited", { ip, userAgent, metadata: { endpoint: "login" } })
       return NextResponse.json(
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check account lockout
-    const lockout = isAccountLocked(normalizedEmail)
+    const lockout = await isAccountLocked(normalizedEmail)
     if (lockout.locked) {
       await logSecurityEvent("login_locked", { email: normalizedEmail, ip, userAgent })
       // V-39 FIX: Don't reveal lockout status to unauthenticated users (enumeration vector)
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     if (!usuario) {
       // V-14 FIX: Removed admin auto-provisioning from env vars.
-      recordFailedLogin(normalizedEmail)
+      await recordFailedLogin(normalizedEmail)
       await logSecurityEvent("login_failed", { email: normalizedEmail, ip, userAgent, metadata: { reason: "user_not_found" } })
       // V-39 FIX: Same error for user not found (prevents enumeration)
       return NextResponse.json(
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     const validPassword = await verifyPassword(password, usuario.password_hash)
 
     if (!validPassword) {
-      const lockResult = recordFailedLogin(normalizedEmail)
+      const lockResult = await recordFailedLogin(normalizedEmail)
       await logSecurityEvent("login_failed", { userId: usuario.id, email: normalizedEmail, ip, userAgent, metadata: { reason: "wrong_password" } })
       if (lockResult.locked) {
         await logSecurityEvent("account_locked", { userId: usuario.id, email: normalizedEmail, ip, userAgent })
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Success — clear lockout, create session with fingerprint
-    clearFailedLogins(normalizedEmail)
+    await clearFailedLogins(normalizedEmail)
     const session = await createSession(usuario.id, fingerprint)
 
     await logSecurityEvent("login_success", { userId: usuario.id, email: normalizedEmail, ip, userAgent })

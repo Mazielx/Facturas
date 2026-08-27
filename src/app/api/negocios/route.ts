@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   const userAgent = extractUserAgent(request)
 
   // H4 FIX: Rate limit tenant creation
-  const rl = checkRateLimit(String(user.id), RATE_LIMITS.admin)
+  const rl = await checkRateLimit(String(user.id), RATE_LIMITS.admin)
   if (!rl.allowed) {
     await logSecurityEvent("rate_limited", { userId: user.id, ip, userAgent, metadata: { endpoint: "negocio_create" } })
     return NextResponse.json(

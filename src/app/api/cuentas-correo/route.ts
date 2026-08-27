@@ -12,7 +12,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }
 
-    const negocio = await getNegocioById(user.negocio_id!)
+    if (!user.negocio_id) {
+      return NextResponse.json({ error: "Usuario sin negocio asociado" }, { status: 404 })
+    }
+
+    const negocio = await getNegocioById(user.negocio_id)
     if (!negocio) {
       return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 })
     }

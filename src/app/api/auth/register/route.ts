@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Rate limit by IP + email
-    const rl = checkRateLimit(`${ip}:${cleanEmail}`, RATE_LIMITS.register)
+    const rl = await checkRateLimit(`${ip}:${cleanEmail}`, RATE_LIMITS.register)
     if (!rl.allowed) {
       await logSecurityEvent("rate_limited", { ip, userAgent, metadata: { endpoint: "register" } })
       return NextResponse.json(

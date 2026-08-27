@@ -5,7 +5,7 @@ import Link from "next/link"
 import ThemeToggle from "../components/theme-toggle"
 import PlanModal from "../components/plan-modal"
 import BackLink from "../components/back-link"
-import { getPlanInfo, getPlanNombre, getPlanById, formatPrecio } from "@/lib/plans"
+import { getPlanInfo, getPlanNombre, formatPrecio } from "@/lib/plans"
 
 interface NegocioInfo {
   id: number
@@ -503,7 +503,7 @@ export default function EmpresaPage() {
 
             {negocio?.plan && getPlanInfo(negocio.plan).tipo !== "empresa" && (
               <div className="mt-4 p-4 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Plan Empresa · {formatPrecio(getPlanById("empresa-mensual")!.precio)}/mes</p>
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Plan Empresa · {formatPrecio(getPlanInfo("empresa-mensual").precio)}/mes</p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                   Conecta hasta 4 cuentas de correo institucionales para extraer facturas de multiples fuentes.
                   Con descuento anual disponible.

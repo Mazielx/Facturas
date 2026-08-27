@@ -2,8 +2,8 @@
  * Grydex Security Module
  * 
  * Comprehensive security utilities:
- * - Rate limiting (in-memory with sliding window)
- * - Account lockout after failed attempts
+ * - Rate limiting (Upstash-backed with in-memory fallback)
+ * - Account lockout after failed attempts (Upstash-backed)
  * - Password strength validation + breach checking
  * - Session fingerprinting
  * - Security audit logging
@@ -14,24 +14,67 @@
 import crypto from "crypto"
 import { dbRun, dbGet, dbAll } from "@/db/client"
 
+// Upstash imports — only used when env vars are configured
+let _Ratelimit: typeof import("@upstash/ratelimit").Ratelimit | null = null
+let _Redis: typeof import("@upstash/redis").Redis | null = null
+
+async function loadUpstash() {
+  if (!_Ratelimit) {
+    try {
+      const ratelimitMod = await import("@upstash/ratelimit")
+      const redisMod = await import("@upstash/redis")
+      _Ratelimit = ratelimitMod.Ratelimit
+      _Redis = redisMod.Redis
+    } catch {
+      // Upstash not installed — fall back to in-memory
+    }
+  }
+}
+
+
 // ============================================================================
-// RATE LIMITING — In-memory sliding window
+// RATE LIMITING — Upstash-backed (serverless-safe) with in-memory fallback
 // ============================================================================
+//
+// On Vercel (serverless) in-memory Maps don't persist across invocations,
+// so rate limits AND account lockout were non-functional. We now use Upstash
+// Redis when configured, falling back to in-memory otherwise (dev/CI/Railway).
 
 interface RateLimitEntry {
   count: number
   resetAt: number
 }
 
-const rateLimitStore = new Map<string, RateLimitEntry>()
+const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
 
-// Cleanup expired entries every 5 minutes
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, entry] of rateLimitStore) {
-    if (entry.resetAt <= now) rateLimitStore.delete(key)
+/** True when Upstash is configured. */
+export const isUpstashConfigured = Boolean(UPSTASH_URL && UPSTASH_TOKEN)
+
+let _redis: InstanceType<typeof import("@upstash/redis").Redis> | null = null
+function getRedis(): InstanceType<typeof import("@upstash/redis").Redis> | null {
+  if (!isUpstashConfigured) return null
+  if (_redis) return _redis
+  if (_Redis) {
+    _redis = new _Redis({ url: UPSTASH_URL!, token: UPSTASH_TOKEN! })
+    return _redis
   }
-}, 5 * 60 * 1000)
+  return null
+}
+
+// --- In-memory fallback store (only when Upstash is not configured) ---
+const rateLimitStore = new Map<string, RateLimitEntry>()
+let rateLimitCleanupStarted = false
+function ensureRateLimitCleanup() {
+  if (rateLimitCleanupStarted || typeof setInterval === "undefined") return
+  rateLimitCleanupStarted = true
+  setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of rateLimitStore) {
+      if (entry.resetAt <= now) rateLimitStore.delete(key)
+    }
+  }, 5 * 60 * 1000)
+}
 
 export interface RateLimitConfig {
   /** Window size in milliseconds */
@@ -49,10 +92,65 @@ export interface RateLimitResult {
   resetAt: number
 }
 
-export function checkRateLimit(
+// Predefined rate limits
+export const RATE_LIMITS = {
+  login: { windowMs: 15 * 60 * 1000, max: 5, prefix: "rl:login" },          // 5 per 15 min
+  register: { windowMs: 60 * 60 * 1000, max: 3, prefix: "rl:register" },     // 3 per hour
+  passwordChange: { windowMs: 60 * 60 * 1000, max: 3, prefix: "rl:pw" },     // 3 per hour
+  extract: { windowMs: 5 * 60 * 1000, max: 5, prefix: "rl:extract" },        // 5 per 5 min
+  export: { windowMs: 5 * 60 * 1000, max: 10, prefix: "rl:export" },         // 10 per 5 min
+  apiGlobal: { windowMs: 60 * 1000, max: 60, prefix: "rl:api" },             // 60 per min
+  admin: { windowMs: 60 * 1000, max: 30, prefix: "rl:admin" },               // 30 per min
+} as const
+
+// Lazily build one Ratelimit instance per prefix (cached across warm starts)
+let _ratelimits: Record<string, InstanceType<typeof import("@upstash/ratelimit").Ratelimit>> | null | undefined
+async function getRatelimits(): Promise<Record<string, InstanceType<typeof import("@upstash/ratelimit").Ratelimit>> | null> {
+  if (_ratelimits !== undefined) return _ratelimits
+  await loadUpstash()
+  const redis = getRedis()
+  if (!redis || !_Ratelimit) {
+    _ratelimits = null
+    return null
+  }
+  const map: Record<string, InstanceType<typeof _Ratelimit>> = {}
+  for (const cfg of Object.values(RATE_LIMITS)) {
+    const windowSec = Math.floor(cfg.windowMs / 1000)
+    map[cfg.prefix] = new _Ratelimit({
+      redis,
+      limiter: _Ratelimit.slidingWindow(cfg.max, `${windowSec} s`),
+      prefix: cfg.prefix,
+      analytics: false,
+    })
+  }
+  _ratelimits = map as Record<string, InstanceType<typeof _Ratelimit>>
+  return _ratelimits
+}
+
+export async function checkRateLimit(
   identifier: string,
   config: RateLimitConfig
-): RateLimitResult {
+): Promise<RateLimitResult> {
+  const ratelimits = await getRatelimits()
+  const rl = ratelimits?.[config.prefix]
+
+  if (rl) {
+    try {
+      const { success, limit, remaining, reset } = await rl.limit(identifier)
+      return {
+        allowed: success,
+        max: limit,
+        remaining: Math.max(0, remaining),
+        resetAt: reset,
+      }
+    } catch (err) {
+      // Fail open on Redis errors — degrade to per-instance in-memory
+      safeLogError("ratelimit:upstash", err)
+    }
+  }
+
+  // Fallback: in-memory sliding window
+  ensureRateLimitCleanup()
   const key = `${config.prefix}:${identifier}`
   const now = Date.now()
   const entry = rateLimitStore.get(key)
@@ -78,20 +176,9 @@ export function getRateLimitHeaders(result: RateLimitResult): Record<string, str
   }
 }
 
-// Predefined rate limits
-export const RATE_LIMITS = {
-  login: { windowMs: 15 * 60 * 1000, max: 5, prefix: "rl:login" },          // 5 per 15 min
-  register: { windowMs: 60 * 60 * 1000, max: 3, prefix: "rl:register" },     // 3 per hour
-  passwordChange: { windowMs: 60 * 60 * 1000, max: 3, prefix: "rl:pw" },     // 3 per hour
-  extract: { windowMs: 5 * 60 * 1000, max: 5, prefix: "rl:extract" },        // 5 per 5 min
-  export: { windowMs: 5 * 60 * 1000, max: 10, prefix: "rl:export" },         // 10 per 5 min
-  apiGlobal: { windowMs: 60 * 1000, max: 60, prefix: "rl:api" },             // 60 per min
-  admin: { windowMs: 60 * 1000, max: 30, prefix: "rl:admin" },               // 30 per min
-} as const
-
 
 // ============================================================================
-// ACCOUNT LOCKOUT — Track failed login attempts
+// ACCOUNT LOCKOUT — Track failed login attempts (Upstash-backed, in-memory fallback)
 // ============================================================================
 
 interface LockoutEntry {
@@ -100,6 +187,22 @@ interface LockoutEntry {
 }
 
 const lockoutStore = new Map<string, LockoutEntry>()
+let lockoutCleanupStarted = false
+function ensureLockoutCleanup() {
+  if (lockoutCleanupStarted || typeof setInterval === "undefined") return
+  lockoutCleanupStarted = true
+  setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of lockoutStore) {
+      if (entry.lockedUntil !== 0 && entry.lockedUntil <= now) {
+        lockoutStore.delete(key)
+      }
+    }
+  }, 5 * 60 * 1000)
+}
+
+const lockoutFailureKey = (id: string) => `lockout:fail:${id}`
+const lockoutLockKey = (id: string) => `lockout:lock:${id}`
 
 export const LOCKOUT_CONFIG = {
   maxFailures: 5,
@@ -107,7 +210,29 @@ export const LOCKOUT_CONFIG = {
   failureWindowMs: 30 * 60 * 1000,   // Reset counter after 30 min of no failures
 }
 
-export function recordFailedLogin(identifier: string): { locked: boolean; remainingMs: number } {
+export async function recordFailedLogin(identifier: string): Promise<{ locked: boolean; remainingMs: number }> {
+  const redis = getRedis()
+  if (redis) {
+    try {
+      const failKey = lockoutFailureKey(identifier)
+      const count = await redis.incr(failKey)
+      if (count === 1) {
+        await redis.expire(failKey, Math.ceil(LOCKOUT_CONFIG.failureWindowMs / 1000))
+      }
+      if (count >= LOCKOUT_CONFIG.maxFailures) {
+        await redis.set(lockoutLockKey(identifier), "1", {
+          ex: Math.ceil(LOCKOUT_CONFIG.lockoutDurationMs / 1000),
+        })
+        return { locked: true, remainingMs: LOCKOUT_CONFIG.lockoutDurationMs }
+      }
+      return { locked: false, remainingMs: 0 }
+    } catch (err) {
+      safeLogError("lockout:upstash", err)
+    }
+  }
+
+  // Fallback: in-memory
+  ensureLockoutCleanup()
   const now = Date.now()
   const entry = lockoutStore.get(identifier)
 
@@ -129,11 +254,30 @@ export function recordFailedLogin(identifier: string): { locked: boolean; remain
   return { locked: false, remainingMs: 0 }
 }
 
-export function clearFailedLogins(identifier: string): void {
+export async function clearFailedLogins(identifier: string): Promise<void> {
+  const redis = getRedis()
+  if (redis) {
+    try {
+      await redis.del(lockoutFailureKey(identifier), lockoutLockKey(identifier))
+      return
+    } catch (err) {
+      safeLogError("lockout:clear:upstash", err)
+    }
+  }
   lockoutStore.delete(identifier)
 }
 
-export function isAccountLocked(identifier: string): { locked: boolean; remainingMs: number } {
+export async function isAccountLocked(identifier: string): Promise<{ locked: boolean; remainingMs: number }> {
+  const redis = getRedis()
+  if (redis) {
+    try {
+      const ttl = await redis.ttl(lockoutLockKey(identifier))
+      if (ttl > 0) return { locked: true, remainingMs: ttl * 1000 }
+      return { locked: false, remainingMs: 0 }
+    } catch (err) {
+      safeLogError("lockout:check:upstash", err)
+    }
+  }
   const entry = lockoutStore.get(identifier)
   if (!entry) return { locked: false, remainingMs: 0 }
   if (entry.lockedUntil <= Date.now()) return { locked: false, remainingMs: 0 }

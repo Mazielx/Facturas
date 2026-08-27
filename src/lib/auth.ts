@@ -198,5 +198,6 @@ export async function createUsuario(
   )
 
   const user = await dbGet<Usuario>("SELECT * FROM usuarios WHERE email = ?", { "1": email })
-  return user!
+  if (!user) throw new Error("No se pudo crear el usuario")
+  return user
 }

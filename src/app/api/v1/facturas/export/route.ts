@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     const ip = extractClientIp(req)
     const userAgent = extractUserAgent(req)
 
-    const rl = checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.export)
+    const rl = await checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.export)
     if (!rl.allowed) {
       return new Response(JSON.stringify({ error: "Demasiadas exportaciones. Espera unos minutos." }), {
         status: 429,

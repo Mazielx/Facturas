@@ -111,7 +111,7 @@ export async function initializeSchema(): Promise<void> {
       metodo_pago TEXT,
       estado TEXT DEFAULT 'pendiente',
       confianza_score REAL DEFAULT 1.0,
-      confianza_nivel TEXT DEFAULT 'alta',
+      confianza_nivel TEXT DEFAULT 'confiable',
       requiere_revision INTEGER DEFAULT 0,
       revision_notas TEXT,
       revision_by INTEGER,
@@ -226,18 +226,6 @@ export async function initializeSchema(): Promise<void> {
     await dbExec("UPDATE etiquetas SET negocio_id = 1 WHERE negocio_id IS NULL")
   }
 
-  // Security tables
-  await dbExec(`CREATE TABLE IF NOT EXISTS security_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_type TEXT NOT NULL,
-    user_id INTEGER,
-    email TEXT,
-    ip TEXT,
-    user_agent TEXT,
-    metadata TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  )`)
-
   const sesionesColumns = await dbAll<{ name: string }>("PRAGMA table_info(sesiones)")
   if (!sesionesColumns.some((c) => c.name === "fingerprint")) {
     await dbExec("ALTER TABLE sesiones ADD COLUMN fingerprint TEXT")
@@ -261,4 +249,17 @@ export async function initializeSchema(): Promise<void> {
   // so we add a per-tenant index and handle cross-tenant UNIQUE violations
   // gracefully in the extraction code (treat as "already processed").
   await dbExec("CREATE UNIQUE INDEX IF NOT EXISTS idx_facturas_hash_tenant ON facturas(adjunto_hash, negocio_slug)").catch(() => {})
+
+  // Oracle FIX: Dedup query indexes
+  await dbExec("CREATE INDEX IF NOT EXISTS idx_facturas_dedup_numero ON facturas(negocio_slug, numero_factura, emisor_nif)").catch(() => {})
+  await dbExec("CREATE INDEX IF NOT EXISTS idx_facturas_dedup_monto ON facturas(negocio_slug, fecha_emision, emisor_nif)").catch(() => {})
+
+  // Oracle FIX: lineas_factura unique constraint
+  await dbExec("CREATE UNIQUE INDEX IF NOT EXISTS idx_lineas_unique ON lineas_factura(factura_id, numero_linea)").catch(() => {})
+
+  // Oracle FIX: duplicados_potenciales unique constraint (prevents race condition)
+  await dbExec("CREATE UNIQUE INDEX IF NOT EXISTS idx_duplicados_unique ON duplicados_potenciales(factura_id, duplicada_de_id)").catch(() => {})
+
+  // Oracle FIX: Session expiry index for startup cleanup
+  await dbExec("CREATE INDEX IF NOT EXISTS idx_sesiones_expires ON sesiones(expires_at)").catch(() => {})
 }

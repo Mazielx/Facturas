@@ -103,7 +103,9 @@ export function getPlanById(id: string): Plan | undefined {
 
 export function getPlanInfo(plan: string): Plan {
   const resolved = LEGACY_PLAN_MAP[plan] ?? plan
-  return getPlanById(resolved) ?? getPlanById(PLAN_DEFAULT)!
+  const info = getPlanById(resolved) ?? getPlanById(PLAN_DEFAULT)
+  if (!info) throw new Error(`Plan no encontrado: ${resolved}`)
+  return info
 }
 
 export function getMaxEmailCuentas(plan: string): number {

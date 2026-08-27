@@ -20,7 +20,7 @@ export async function PUT(request: Request) {
     const userAgent = extractUserAgent(request)
 
     // Rate limit
-    const rl = checkRateLimit(`${user.id}`, RATE_LIMITS.passwordChange)
+    const rl = await checkRateLimit(`${user.id}`, RATE_LIMITS.passwordChange)
     if (!rl.allowed) {
       await logSecurityEvent("rate_limited", { userId: user.id, ip, userAgent, metadata: { endpoint: "password_change" } })
       return NextResponse.json(
@@ -56,8 +56,11 @@ export async function PUT(request: Request) {
     }
 
     const usuario = await dbGet<{ password_hash: string }>("SELECT password_hash FROM usuarios WHERE id = ?", { "1": user.id })
+    if (!usuario) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 500 })
+    }
 
-    const validPassword = await verifyPassword(currentPassword, usuario!.password_hash)
+    const validPassword = await verifyPassword(currentPassword, usuario.password_hash)
     if (!validPassword) {
       await logSecurityEvent("login_failed", { userId: user.id, ip, userAgent, metadata: { reason: "wrong_password_on_change" } })
       return NextResponse.json({ error: "La contrasena actual es incorrecta" }, { status: 401 })

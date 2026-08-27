@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const userAgent = extractUserAgent(req)
 
     // Rate limit by API key ID
-    const rl = checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.apiGlobal)
+    const rl = await checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.apiGlobal)
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Demasiadas peticiones. Intenta de nuevo mas tarde." },
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     const userAgent = extractUserAgent(req)
 
     // Rate limit by API key ID
-    const rl = checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.apiGlobal)
+    const rl = await checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.apiGlobal)
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Demasiadas peticiones. Intenta de nuevo mas tarde." },

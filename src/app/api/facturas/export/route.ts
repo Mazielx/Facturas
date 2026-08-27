@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const userAgent = extractUserAgent(request)
 
     // Rate limit exports
-    const rl = checkRateLimit(String(tenant.user.id), RATE_LIMITS.export)
+    const rl = await checkRateLimit(String(tenant.user.id), RATE_LIMITS.export)
     if (!rl.allowed) {
       await logSecurityEvent("rate_limited", { userId: tenant.user.id, ip, userAgent, metadata: { endpoint: "export" } })
       return new Response(JSON.stringify({ error: "Demasiadas exportaciones. Espera unos minutos." }), {

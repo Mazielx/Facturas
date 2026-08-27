@@ -29,7 +29,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Cuenta no encontrada" }, { status: 404 })
     }
 
-    const negocio = await getNegocioById(user.negocio_id!)
+    if (!user.negocio_id) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+    }
+
+    const negocio = await getNegocioById(user.negocio_id)
     if (!negocio || cuenta.negocio_id !== negocio.id) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }

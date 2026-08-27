@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const userAgent = extractUserAgent(request)
 
     // Rate limit backups
-    const rl = checkRateLimit(String(user.id), RATE_LIMITS.admin)
+    const rl = await checkRateLimit(String(user.id), RATE_LIMITS.admin)
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Demasiadas solicitudes. Espera unos minutos." },

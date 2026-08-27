@@ -567,7 +567,9 @@ export default function FacturasContent() {
         format={exportFormat}
         defaultName={exportName}
         onClose={() => setExportFormat(null)}
-        onConfirm={(name) => downloadExport(name, exportFormat!)}
+        onConfirm={(name) => {
+          if (exportFormat) downloadExport(name, exportFormat)
+        }}
       />
     </div>
   )

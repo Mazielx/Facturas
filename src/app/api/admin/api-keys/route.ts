@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       const keys = await getApiKeysByNegocio(n.id)
       for (const k of keys) {
         // V-28 FIX: Strip key_hash from response
-        const { key_hash, ...safeKey } = k as any
+        const { key_hash, ...safeKey } = k
         allKeys.push({ ...safeKey, negocio_nombre: n.nombre, key_prefix: k.key_prefix + "****" })
       }
     }

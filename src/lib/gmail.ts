@@ -1,6 +1,14 @@
-import { google } from "googleapis"
-import type { OAuth2Client, Credentials } from "google-auth-library"
+import { gmail as gmailFactory } from "@googleapis/gmail"
+import { OAuth2Client, type Credentials } from "google-auth-library"
 import type { EmailMessage, AttachmentInfo } from "./types"
+
+interface GmailAttachmentPart {
+  filename?: string | null
+  mimeType?: string | null
+  size?: string | number | null
+  body?: { attachmentId?: string | null } | null
+  parts?: GmailAttachmentPart[] | null
+}
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
@@ -9,11 +17,17 @@ const SCOPES = [
 ]
 
 export function getOAuth2Client(): OAuth2Client {
-  const clientId = process.env.GOOGLE_CLIENT_ID!
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET!
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI!
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI
 
-  return new google.auth.OAuth2(clientId, clientSecret, redirectUri)
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error(
+      "Faltan variables de entorno de OAuth de Google: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI"
+    )
+  }
+
+  return new OAuth2Client(clientId, clientSecret, redirectUri)
 }
 
 export function getAuthUrl(state?: string): string {
@@ -87,7 +101,7 @@ export async function listEmailsWithAttachments(
   auth: OAuth2Client,
   maxResults = 20
 ): Promise<{ emails: EmailMessage[]; nextPageToken?: string }> {
-  const gmail = google.gmail({ version: "v1", auth })
+  const gmail = gmailFactory({ version: "v1", auth })
 
   const listResponse = await gmail.users.messages.list({
     userId: "me",
@@ -100,9 +114,10 @@ export async function listEmailsWithAttachments(
   const emails: EmailMessage[] = []
 
   for (const msg of messages) {
+    if (!msg.id) continue
     const detail = await gmail.users.messages.get({
       userId: "me",
-      id: msg.id!,
+      id: msg.id,
     })
 
     const payload = detail.data.payload
@@ -114,16 +129,15 @@ export async function listEmailsWithAttachments(
 
     const attachments: AttachmentInfo[] = []
     let totalAttachmentCount = 0
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const collectAttachments = (parts: any[] | undefined) => {
+    const collectAttachments = (parts: GmailAttachmentPart[] | undefined) => {
       if (!parts) return
       for (const part of parts) {
         if (part.filename && part.body?.attachmentId) {
           totalAttachmentCount++
-          if (isPdfOrXmlAttachment(part.mimeType, part.filename)) {
+          if (isPdfOrXmlAttachment(part.mimeType ?? "", part.filename)) {
             attachments.push({
               filename: part.filename,
-              mimeType: part.mimeType,
+              mimeType: part.mimeType ?? "",
               size: Number(part.size) || 0,
               attachmentId: part.body.attachmentId,
             })
@@ -135,16 +149,16 @@ export async function listEmailsWithAttachments(
       }
     }
 
-    collectAttachments(payload?.parts)
+    collectAttachments(payload?.parts as GmailAttachmentPart[] | undefined)
     if (payload?.mimeType === "message/rfc822" && payload?.parts) {
       for (const part of payload.parts) {
-        if (part.parts) collectAttachments(part.parts)
+        if (part.parts) collectAttachments(part.parts as GmailAttachmentPart[] | undefined)
       }
     }
 
     if (attachments.length > 0) {
       emails.push({
-        id: msg.id!,
+        id: msg.id,
         threadId: detail.data.threadId || "",
         subject,
         from,

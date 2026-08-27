@@ -59,7 +59,9 @@ export async function createNegocio(nombre: string, slug: string, email?: string
     "INSERT INTO negocios (nombre, slug, email, moneda_default) VALUES (?, ?, ?, ?)",
     { "1": nombre, "2": slug, "3": email || null, "4": monedaDefault }
   )
-  return (await getNegocioBySlug(slug))!
+  const negocio = await getNegocioBySlug(slug)
+  if (!negocio) throw new Error("No se pudo crear el negocio")
+  return negocio
 }
 
 export async function updateNegocio(id: number, data: { nombre?: string; email?: string; moneda_default?: string; plan?: string; plan_pagado_hasta?: string | null; stripe_customer_id?: string | null; stripe_subscription_id?: string | null }): Promise<{ error?: string }> {
@@ -166,6 +168,10 @@ export async function deleteNegocio(id: number): Promise<void> {
   queries.push({ sql: "DELETE FROM etiquetas WHERE negocio_id = ?", args: { "1": id } })
   queries.push({ sql: "DELETE FROM cuentas_correo WHERE negocio_id = ?", args: { "1": id } })
   queries.push({ sql: "DELETE FROM api_keys WHERE negocio_id = ?", args: { "1": id } })
+
+  // Morty FIX: Delete negocio-role users (admin users keep their account with negocio_id=NULL)
+  queries.push({ sql: "DELETE FROM usuarios WHERE negocio_id = ? AND role = 'negocio'", args: { "1": id } })
+
   queries.push({ sql: "DELETE FROM negocios WHERE id = ?", args: { "1": id } })
 
   // Execute all deletions atomically
@@ -207,7 +213,8 @@ export async function createCuentaCorreo(negocioId: number, email: string, acces
     { "1": negocioId, "2": email, "3": accessToken, "4": refreshToken, "5": tokenExpiry, "6": profilePhotoUrl || null }
   )
   const row = await dbGet<CuentaCorreo>("SELECT * FROM cuentas_correo WHERE negocio_id = ? AND email = ?", { "1": negocioId, "2": email })
-  return row!
+  if (!row) throw new Error("No se pudo crear la cuenta de correo")
+  return row
 }
 
 export async function updateCuentaCorreoTokens(id: number, accessToken: string, refreshToken: string, tokenExpiry: string): Promise<void> {
@@ -271,7 +278,8 @@ export async function createUsuario(
     { "1": email, "2": passwordHash, "3": nombre, "4": role, "5": negocioId || null }
   )
   const user = await getUsuarioByEmail(email)
-  return user!
+  if (!user) throw new Error("No se pudo crear el usuario")
+  return user
 }
 
 export async function updateUsuario(

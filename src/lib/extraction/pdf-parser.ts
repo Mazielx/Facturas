@@ -1,10 +1,7 @@
 import type { FacturaCompleta, DatosEmisor, DatosReceptor, DatosFactura, LineaFactura } from "./types"
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const loadPdfParse = () => require("pdf-parse/lib/pdf-parse")
-
 export async function parsePdf(pdfBuffer: Buffer): Promise<FacturaCompleta> {
-  const pdfParse = await loadPdfParse()
+  const pdfParse = (await import("pdf-parse/lib/pdf-parse")).default
   const data = await pdfParse(pdfBuffer)
   const text = data.text
 

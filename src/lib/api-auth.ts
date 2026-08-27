@@ -42,7 +42,8 @@ export async function createApiKey(
     { "1": result.lastInsertRowid }
   )
 
-  return { key, apiKey: apiKey! }
+  if (!apiKey) throw new Error("No se pudo crear la API key")
+  return { key, apiKey }
 }
 
 export async function validateApiKey(key: string): Promise<ApiKey | null> {

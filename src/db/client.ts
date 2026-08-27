@@ -12,7 +12,9 @@ export function getDb(): Client {
   // Oracle FIX: Enable foreign key enforcement on first connection
   if (!pragmaExecuted) {
     pragmaExecuted = true
-    client.execute("PRAGMA foreign_keys = ON").catch(() => {})
+    client.execute("PRAGMA foreign_keys = ON").catch((err) => {
+      console.error("Failed to enable foreign_keys PRAGMA:", err)
+    })
   }
   return client
 }

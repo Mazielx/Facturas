@@ -5,7 +5,7 @@ import { requireActiveTenant } from "@/lib/tenant"
 import { notifyExtractionErrors } from "@/lib/notifications"
 import { getCuentasCorreo, updateCuentaCorreoTokens } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
-import { google } from "googleapis"
+import { gmail as gmailFactory } from "@googleapis/gmail"
 import {
   checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
   extractClientIp, extractUserAgent,
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const userAgent = extractUserAgent(request)
 
   // Rate limit extraction by user ID
-  const rl = checkRateLimit(String(tenant.user.id), RATE_LIMITS.extract)
+  const rl = await checkRateLimit(String(tenant.user.id), RATE_LIMITS.extract)
   if (!rl.allowed) {
     await logSecurityEvent("rate_limited", { userId: tenant.user.id, ip, userAgent, metadata: { endpoint: "extract" } })
     return NextResponse.json(
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
     if (emailList.emails.length === 0) return
 
-    const gmail = google.gmail({ version: "v1", auth })
+    const gmail = gmailFactory({ version: "v1", auth })
 
     for (const email of emailList.emails) {
       const xmlAttachments = email.attachments.filter(
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
           )
 
           if (extractionResult.success) {
-            allProcessed.push({ emailId: email.id, filename: attachment.filename, facturaId: extractionResult.facturaId!, cuenta: cuentaEmail })
+            allProcessed.push({ emailId: email.id, filename: attachment.filename, facturaId: extractionResult.facturaId, cuenta: cuentaEmail })
           } else if (extractionResult.alreadyExists) {
             // V-31c FIX: Cross-tenant dedup hits are skipped, not errors
             allSkipped.push({ emailId: email.id, filename: attachment.filename, reason: extractionResult.error || "Archivo ya procesado", cuenta: cuentaEmail })

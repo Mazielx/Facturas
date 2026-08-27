@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     await logSecurityEvent("admin_action", { userId: admin.id, ip, userAgent, metadata: { action: "create_user", targetEmail: cleanEmail } })
 
-    const { password_hash, ...safe } = nuevoUsuario as any
+    const { password_hash, ...safe } = nuevoUsuario
     return NextResponse.json(safe, { status: 201 })
   } catch (error) {
     if (error instanceof Error && error.message === "No autenticado") {
@@ -92,7 +92,7 @@ export async function PUT(req: NextRequest) {
     const userAgent = extractUserAgent(req)
 
     // Rate limit admin mutations
-    const rl = checkRateLimit(`admin:${admin.id}`, RATE_LIMITS.admin)
+    const rl = await checkRateLimit(`admin:${admin.id}`, RATE_LIMITS.admin)
     if (!rl.allowed) {
       await logSecurityEvent("rate_limited", { userId: admin.id, ip, userAgent, metadata: { endpoint: "admin_update_user" } })
       return NextResponse.json(

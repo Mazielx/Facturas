@@ -31,7 +31,7 @@ export async function GET(
     const ip = extractClientIp(req)
     const userAgent = extractUserAgent(req)
 
-    const rl = checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.apiGlobal)
+    const rl = await checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.apiGlobal)
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Demasiadas peticiones. Intenta de nuevo mas tarde." },
@@ -86,7 +86,7 @@ export async function DELETE(
     const ip = extractClientIp(req)
     const userAgent = extractUserAgent(req)
 
-    const rl = checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.apiGlobal)
+    const rl = await checkRateLimit(`apikey:${apiKey.id}`, RATE_LIMITS.apiGlobal)
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Demasiadas peticiones. Intenta de nuevo mas tarde." },
