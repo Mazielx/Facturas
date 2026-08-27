@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth"
+import { requireAuth } from "@/lib/tenant"
 import { dbRun } from "@/db/client"
 import fs from "fs"
 import path from "path"
@@ -15,7 +15,7 @@ const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"
 
 export async function POST(request: Request) {
   try {
-    const user = await getCurrentUser()
+    const user = await requireAuth(request)
     if (!user) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }

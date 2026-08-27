@@ -452,6 +452,12 @@ export function detectXmlFormat(xmlContent: string): "facturae" | "ubl" | "cfdi"
 }
 
 export function parseXml(xmlContent: string): FacturaCompleta {
+  // Morty FIX: Enforce max XML size BEFORE parsing to prevent DoS
+  const byteLength = Buffer.byteLength(xmlContent, "utf-8")
+  if (byteLength > MAX_XML_SIZE) {
+    throw new Error(`XML demasiado grande: ${Math.round(byteLength / 1024)}KB (max: ${Math.round(MAX_XML_SIZE / 1024)}KB)`)
+  }
+
   const format = detectXmlFormat(xmlContent)
 
   switch (format) {

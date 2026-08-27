@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth"
+import { requireAuth } from "@/lib/tenant"
 import { getCuentasCorreo, getNegocioById } from "@/db"
 import { isEmailInstitucional } from "@/lib/email-validation"
 import { isAccesoCompleto, maxCuentasCorreo } from "@/lib/paywall"
 import { safeLogError } from "@/lib/security"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = await getCurrentUser()
+    const user = await requireAuth(request)
     if (!user) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }
@@ -49,7 +49,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const user = await getCurrentUser()
+    const user = await requireAuth(request)
     if (!user || !user.negocio_id) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }

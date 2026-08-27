@@ -10,7 +10,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const tenant = await requireActiveTenant()
+    const tenant = await requireActiveTenant(req)
     await ensureSchema()
     if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
       return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })

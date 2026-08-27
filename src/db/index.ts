@@ -1,5 +1,5 @@
 import { initializeSchema } from "./schema"
-import { dbExec, dbAll, dbGet, dbRun } from "./client"
+import { dbExec, dbAll, dbGet, dbRun, dbTransaction } from "./client"
 
 let schemaInitialized = false
 
@@ -136,7 +136,8 @@ export async function updateNegocio(id: number, data: { nombre?: string; email?:
 
 export async function deleteNegocio(id: number): Promise<void> {
   await ensureSchema()
-  // V-19 FIX: Delete children BEFORE parents. Use a transaction.
+  // V-19/V-48 FIX: Delete children BEFORE parents. Use a transaction.
+  // Oracle FIX: Also clean up etiquetas (missing from original).
   const slug = await dbGet<{ slug: string }>("SELECT slug FROM negocios WHERE id = ?", { "1": id })
   if (!slug) return
 
@@ -147,21 +148,28 @@ export async function deleteNegocio(id: number): Promise<void> {
   )
   const ids = facturaIds.map(f => f.id)
 
+  const queries: Array<{ sql: string; args?: Record<string, unknown> }> = []
+
   if (ids.length > 0) {
     const placeholders = ids.map(() => "?").join(",")
     const args: Record<string, unknown> = {}
     ids.forEach((fid, i) => { args[String(i + 1)] = fid })
 
-    await dbRun(`DELETE FROM adjuntos WHERE factura_id IN (${placeholders})`, args)
-    await dbRun(`DELETE FROM lineas_factura WHERE factura_id IN (${placeholders})`, args)
-    await dbRun(`DELETE FROM duplicados_potenciales WHERE factura_id IN (${placeholders})`, args)
-    await dbRun(`DELETE FROM factura_etiqueta WHERE factura_id IN (${placeholders})`, args)
-    await dbRun(`DELETE FROM facturas WHERE negocio_slug = ?`, { "1": slug.slug })
+    queries.push({ sql: `DELETE FROM adjuntos WHERE factura_id IN (${placeholders})`, args })
+    queries.push({ sql: `DELETE FROM lineas_factura WHERE factura_id IN (${placeholders})`, args })
+    queries.push({ sql: `DELETE FROM duplicados_potenciales WHERE factura_id IN (${placeholders})`, args })
+    queries.push({ sql: `DELETE FROM factura_etiqueta WHERE factura_id IN (${placeholders})`, args })
+    queries.push({ sql: `DELETE FROM facturas WHERE negocio_slug = ?`, args: { "1": slug.slug } })
   }
 
-  await dbRun("DELETE FROM cuentas_correo WHERE negocio_id = ?", { "1": id })
-  await dbRun("DELETE FROM api_keys WHERE negocio_id = ?", { "1": id })
-  await dbRun("DELETE FROM negocios WHERE id = ?", { "1": id })
+  // Oracle FIX: Clean up etiquetas belonging to this negocio
+  queries.push({ sql: "DELETE FROM etiquetas WHERE negocio_id = ?", args: { "1": id } })
+  queries.push({ sql: "DELETE FROM cuentas_correo WHERE negocio_id = ?", args: { "1": id } })
+  queries.push({ sql: "DELETE FROM api_keys WHERE negocio_id = ?", args: { "1": id } })
+  queries.push({ sql: "DELETE FROM negocios WHERE id = ?", args: { "1": id } })
+
+  // Execute all deletions atomically
+  await dbTransaction(queries)
 }
 
 export interface CuentaCorreo {

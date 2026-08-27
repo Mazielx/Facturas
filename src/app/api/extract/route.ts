@@ -15,7 +15,7 @@ import {
 export async function POST(request: Request) {
   let tenant: Awaited<ReturnType<typeof requireActiveTenant>>
   try {
-    tenant = await requireActiveTenant()
+    tenant = await requireActiveTenant(request)
   } catch {
     return NextResponse.json({ error: "No hay negocio seleccionado" }, { status: 401 })
   }

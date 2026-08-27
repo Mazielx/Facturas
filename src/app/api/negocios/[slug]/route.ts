@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { getNegocioBySlug, deleteNegocio, updateNegocio } from "@/db"
-import { getCurrentUser } from "@/lib/auth"
+import { requireAuth } from "@/lib/tenant"
 import { isAccesoCompleto } from "@/lib/paywall"
 
-export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
-  const user = await getCurrentUser()
+export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const user = await requireAuth(request)
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
   const { slug } = await params
@@ -21,8 +21,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   })
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
-  const user = await getCurrentUser()
+export async function DELETE(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const user = await requireAuth(request)
   if (!user || user.role !== "admin") {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 })
   }
@@ -35,7 +35,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ slug: string }> }) {
-  const user = await getCurrentUser()
+  const user = await requireAuth(request)
   if (!user || user.role !== "admin") {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 })
   }

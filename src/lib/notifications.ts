@@ -1,5 +1,16 @@
 import nodemailer from "nodemailer"
 import { APP_NAME } from "@/lib/brand"
+import { safeLogError } from "@/lib/security"
+
+/** V-45 FIX: Escape HTML entities to prevent injection in notification emails */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;")
+}
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -18,7 +29,7 @@ export async function sendEmail(
 ): Promise<boolean> {
   try {
     if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
-      console.warn("SMTP no configurado, omitiendo envio de email")
+      safeLogError("smtp_not_configured", { message: "SMTP no configurado, omitiendo envio de email" })
       return false
     }
 
@@ -31,7 +42,7 @@ export async function sendEmail(
 
     return true
   } catch (error) {
-    console.error("Error enviando email:", error)
+    safeLogError("email_send_failed", error)
     return false
   }
 }
@@ -43,7 +54,7 @@ export async function notifyExtractionErrors(
   if (errors.length === 0) return
 
   const errorList = errors
-    .map((e) => `<li><strong>${e.filename}</strong>: ${e.error}</li>`)
+    .map((e) => `<li><strong>${escapeHtml(e.filename)}</strong>: ${escapeHtml(e.error)}</li>`)
     .join("")
 
   const html = `
@@ -76,7 +87,7 @@ export async function notifyPaymentFailed(
 ): Promise<void> {
   const html = `
     <h2>No pudimos cobrar tu suscripcion</h2>
-    <p>Tu pago mensual para <strong>${negocioNombre}</strong> fallo.</p>
+    <p>Tu pago mensual para <strong>${escapeHtml(negocioNombre)}</strong> fallo.</p>
     <p>Para seguir usando ${APP_NAME}, actualiza tu metodo de pago en tu cuenta de Stripe antes de que venza tu acceso.</p>
   `
 
@@ -89,7 +100,7 @@ export async function notifySubscriptionCanceled(
 ): Promise<void> {
   const html = `
     <h2>Suscripcion cancelada</h2>
-    <p>La suscripcion de <strong>${negocioNombre}</strong> fue cancelada.</p>
+    <p>La suscripcion de <strong>${escapeHtml(negocioNombre)}</strong> fue cancelada.</p>
     <p>Si fue un error, puedes volver a suscribirte desde la seccion de planes.</p>
   `
 

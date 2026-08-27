@@ -6,6 +6,17 @@ import { ensureSchema } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
 import { safeLogError } from "@/lib/security"
 
+interface FacturaRow {
+  total: number
+  cuota_iva: number
+  moneda: string
+  estado: string
+  fecha_emision: string | null
+  emisor_nombre: string | null
+  confianza_nivel: string
+  requiere_revision: number
+}
+
 export async function GET() {
   try {
     const tenant = await requireActiveTenant()
@@ -16,120 +27,92 @@ export async function GET() {
     const monedaDefault = tenant.negocio?.moneda_default || "MXN"
     const slug = tenant.slug
 
-    const totalFacturas = await dbGet<{ count: number }>(
-      "SELECT COUNT(*) as count FROM facturas WHERE negocio_slug = ?",
+    // Zoldyck FIX: Replace N+1 (36 queries) with a single query
+    // Fetch ALL facturas once, then group in JavaScript
+    const allFacturas = await dbAll<FacturaRow>(
+      `SELECT total, cuota_iva, moneda, estado, fecha_emision, emisor_nombre,
+              confianza_nivel, requiere_revision
+       FROM facturas WHERE negocio_slug = ?`,
       { "1": slug }
     )
 
-    const totalImporteRaw = await dbGet<{ sum: number | null }>(
-      "SELECT SUM(total) as sum FROM facturas WHERE negocio_slug = ?",
-      { "1": slug }
-    )
-
-    const totalIvaRaw = await dbGet<{ sum: number | null }>(
-      "SELECT SUM(cuota_iva) as sum FROM facturas WHERE negocio_slug = ?",
-      { "1": slug }
-    )
-
-    const allFacturas = await dbAll<{ total: number; cuota_iva: number; moneda: string }>(
-      "SELECT total, cuota_iva, moneda FROM facturas WHERE negocio_slug = ?",
-      { "1": slug }
-    )
+    // Compute totals with currency conversion
     let totalImporte = 0
     let totalIva = 0
+    const estadoMap = new Map<string, { count: number; sum: number }>()
+    const mesMap = new Map<string, { count: number; sum: number }>()
+    const emisorMap = new Map<string, { count: number; sum: number }>()
+    const monedaMap = new Map<string, { count: number; sum: number }>()
+    const confianzaMap = new Map<string, number>()
+    let requierenRevision = 0
+
     for (const f of allFacturas) {
-      totalImporte += convertCurrency(f.total, f.moneda || "MXN", monedaDefault)
-      totalIva += convertCurrency(f.cuota_iva, f.moneda || "MXN", monedaDefault)
-    }
-    totalImporte = Math.round(totalImporte * 100) / 100
-    totalIva = Math.round(totalIva * 100) / 100
+      const convertedTotal = convertCurrency(f.total, f.moneda || "MXN", monedaDefault)
+      const convertedIva = convertCurrency(f.cuota_iva, f.moneda || "MXN", monedaDefault)
+      totalImporte += convertedTotal
+      totalIva += convertedIva
 
-    const porEstado = await dbAll<{ estado: string; count: number; sum: number }>(
-      `SELECT estado, COUNT(*) as count, SUM(total) as sum
-       FROM facturas WHERE negocio_slug = ?
-       GROUP BY estado`,
-      { "1": slug }
-    )
+      // porEstado
+      const es = f.estado || "pendiente"
+      const eEntry = estadoMap.get(es) || { count: 0, sum: 0 }
+      eEntry.count++
+      eEntry.sum += convertedTotal
+      estadoMap.set(es, eEntry)
 
-    const porEstadoConverted = []
-    for (const e of porEstado) {
-      const rows = await dbAll<{ total: number; moneda: string }>(
-        "SELECT total, moneda FROM facturas WHERE estado = ? AND negocio_slug = ?",
-        { "1": e.estado, "2": slug }
-      )
-      let sum = 0
-      for (const r of rows) {
-        sum += convertCurrency(r.total, r.moneda || "MXN", monedaDefault)
+      // porMes
+      if (f.fecha_emision) {
+        const mes = f.fecha_emision.substring(0, 7)
+        const mEntry = mesMap.get(mes) || { count: 0, sum: 0 }
+        mEntry.count++
+        mEntry.sum += convertedTotal
+        mesMap.set(mes, mEntry)
       }
-      porEstadoConverted.push({ estado: e.estado, count: e.count, sum: Math.round(sum * 100) / 100 })
-    }
 
-    const porMoneda = await dbAll<{ moneda: string; count: number; sum: number }>(
-      `SELECT moneda, COUNT(*) as count, SUM(total) as sum
-       FROM facturas WHERE negocio_slug = ?
-       GROUP BY moneda`,
-      { "1": slug }
-    )
-
-    const porMes = await dbAll<{ mes: string; count: number }>(
-      `SELECT
-        substr(fecha_emision, 1, 7) as mes,
-        COUNT(*) as count
-       FROM facturas
-       WHERE fecha_emision IS NOT NULL AND negocio_slug = ?
-       GROUP BY mes
-       ORDER BY mes DESC
-       LIMIT 12`,
-      { "1": slug }
-    )
-
-    const porMesConverted = []
-    for (const m of porMes) {
-      const rows = await dbAll<{ total: number; moneda: string }>(
-        "SELECT total, moneda FROM facturas WHERE substr(fecha_emision, 1, 7) = ? AND negocio_slug = ?",
-        { "1": m.mes, "2": slug }
-      )
-      let sum = 0
-      for (const r of rows) {
-        sum += convertCurrency(r.total, r.moneda || "MXN", monedaDefault)
+      // topEmisores
+      if (f.emisor_nombre) {
+        const emEntry = emisorMap.get(f.emisor_nombre) || { count: 0, sum: 0 }
+        emEntry.count++
+        emEntry.sum += convertedTotal
+        emisorMap.set(f.emisor_nombre, emEntry)
       }
-      porMesConverted.push({ mes: m.mes, count: m.count, sum: Math.round(sum * 100) / 100 })
+
+      // porMoneda
+      const mon = f.moneda || "MXN"
+      const monEntry = monedaMap.get(mon) || { count: 0, sum: 0 }
+      monEntry.count++
+      monEntry.sum += f.total // keep in original currency
+      monedaMap.set(mon, monEntry)
+
+      // porConfianza
+      const cn = f.confianza_nivel || "sin_clasificar"
+      confianzaMap.set(cn, (confianzaMap.get(cn) || 0) + 1)
+
+      // requierenRevision
+      if (f.requiere_revision) requierenRevision++
     }
 
-    const topEmisores = await dbAll<{ emisor_nombre: string; count: number }>(
-      `SELECT emisor_nombre, COUNT(*) as count
-       FROM facturas
-       WHERE emisor_nombre IS NOT NULL AND negocio_slug = ?
-       GROUP BY emisor_nombre
-       ORDER BY count DESC
-       LIMIT 10`,
-      { "1": slug }
-    )
+    // Build response — convert maps to sorted arrays
+    const porMes = Array.from(mesMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .slice(0, 12)
+      .map(([mes, v]) => ({ mes, count: v.count, sum: Math.round(v.sum * 100) / 100 }))
 
-    const topEmisoresConverted = []
-    for (const e of topEmisores) {
-      const rows = await dbAll<{ total: number; moneda: string }>(
-        "SELECT total, moneda FROM facturas WHERE emisor_nombre = ? AND negocio_slug = ?",
-        { "1": e.emisor_nombre, "2": slug }
-      )
-      let sum = 0
-      for (const r of rows) {
-        sum += convertCurrency(r.total, r.moneda || "MXN", monedaDefault)
-      }
-      topEmisoresConverted.push({ emisor_nombre: e.emisor_nombre, count: e.count, sum: Math.round(sum * 100) / 100 })
-    }
+    const topEmisores = Array.from(emisorMap.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 10)
+      .map(([emisor_nombre, v]) => ({ emisor_nombre, count: v.count, sum: Math.round(v.sum * 100) / 100 }))
 
-    const porConfianza = await dbAll<{ confianza_nivel: string; count: number }>(
-      `SELECT confianza_nivel, COUNT(*) as count
-       FROM facturas WHERE negocio_slug = ?
-       GROUP BY confianza_nivel`,
-      { "1": slug }
-    )
+    const porEstado = Array.from(estadoMap.entries()).map(([estado, v]) => ({
+      estado, count: v.count, sum: Math.round(v.sum * 100) / 100,
+    }))
 
-    const requierenRevision = await dbGet<{ count: number }>(
-      "SELECT COUNT(*) as count FROM facturas WHERE requiere_revision = 1 AND negocio_slug = ?",
-      { "1": slug }
-    )
+    const porMoneda = Array.from(monedaMap.entries()).map(([moneda, v]) => ({
+      moneda, count: v.count, sum: Math.round(v.sum * 100) / 100,
+    }))
+
+    const porConfianza = Array.from(confianzaMap.entries()).map(([confianza_nivel, count]) => ({
+      confianza_nivel, count,
+    }))
 
     const duplicados = await dbGet<{ count: number }>(
       "SELECT COUNT(DISTINCT dp.factura_id) as count FROM duplicados_potenciales dp JOIN facturas f ON dp.factura_id = f.id WHERE f.negocio_slug = ?",
@@ -139,16 +122,16 @@ export async function GET() {
     return NextResponse.json({
       moneda: monedaDefault,
       resumen: {
-        totalFacturas: totalFacturas?.count ?? 0,
-        totalImporte,
-        totalIva,
+        totalFacturas: allFacturas.length,
+        totalImporte: Math.round(totalImporte * 100) / 100,
+        totalIva: Math.round(totalIva * 100) / 100,
       },
-      porEstado: porEstadoConverted,
+      porEstado,
       porMoneda,
-      porMes: porMesConverted,
-      topEmisores: topEmisoresConverted,
+      porMes,
+      topEmisores,
       porConfianza,
-      requierenRevision: requierenRevision?.count ?? 0,
+      requierenRevision,
       duplicados: duplicados?.count ?? 0,
     })
   } catch (error) {

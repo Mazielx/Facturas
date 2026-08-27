@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { requireAuth } from "@/lib/auth"
+import { requireAuth } from "@/lib/tenant"
 import { dbAll } from "@/db/client"
 import {
   checkRateLimit, RATE_LIMITS, getRateLimitHeaders,
@@ -9,7 +9,7 @@ import {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireAuth()
+    const user = await requireAuth(request)
     if (user.role !== "admin") {
       return NextResponse.json({ error: "Solo admins" }, { status: 403 })
     }

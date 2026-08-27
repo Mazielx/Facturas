@@ -178,6 +178,32 @@ export default function Home() {
     load()
   }, [negocio])
 
+  // V-48 FIX: Shared refresh helper — avoids duplicate fetch calls (was 4x, now 1x pattern)
+  const refreshDashboardData = async (includeFacturas = true) => {
+    try {
+      const reqs: Array<Promise<Response>> = [fetch("/api/facturas/stats")]
+      if (includeFacturas) reqs.push(fetch("/api/facturas?limit=10"))
+      const results = await Promise.all(reqs)
+
+      const statsRes = results[0]
+      if (statsRes.ok) {
+        const stats = await statsRes.json()
+        setResumen(buildResumen(stats))
+        setPorMes(stats.porMes || [])
+        setTopEmisores(stats.topEmisores || [])
+        setPorEstado(stats.porEstado || [])
+      }
+
+      if (includeFacturas && results[1]?.ok) {
+        const data = await results[1].json()
+        setFacturas(data.facturas)
+        setPagination(data.pagination)
+      }
+    } catch {
+      // silent — dashboard stays on current data
+    }
+  }
+
   const handleExtract = async () => {
     if (!negocio || !negocio.planActivo) {
       setShowPlanModal(true)
@@ -207,22 +233,7 @@ export default function Home() {
           `Extraidas ${data.processed} facturas. ${data.errors > 0 ? `${data.errors} errores.` : ""}`
         )
         if (data.processed > 0) {
-          const [statsRes, facturasRes] = await Promise.all([
-            fetch("/api/facturas/stats"),
-            fetch("/api/facturas?limit=10"),
-          ])
-          if (statsRes.ok) {
-            const stats = await statsRes.json()
-            setResumen(buildResumen(stats))
-            setPorMes(stats.porMes || [])
-            setTopEmisores(stats.topEmisores || [])
-            setPorEstado(stats.porEstado || [])
-          }
-          if (facturasRes.ok) {
-            const factData = await facturasRes.json()
-            setFacturas(factData.facturas)
-            setPagination(factData.pagination)
-          }
+          await refreshDashboardData(true)
         }
       } else {
         setExtractResult(data.error || "Error en la extraccion")
@@ -266,11 +277,7 @@ export default function Home() {
         prev.map((f) => (f.id === facturaId ? { ...f, estado: newEstado } : f))
       )
       setChartsKey((k) => k + 1)
-      fetch("/api/facturas/stats")
-        .then((r) => r.json())
-        .then((stats) => {
-          setResumen(buildResumen(stats))
-        })
+      await refreshDashboardData(false)
     }
   }
 

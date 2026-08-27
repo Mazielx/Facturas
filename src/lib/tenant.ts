@@ -38,16 +38,16 @@ export async function requireActiveTenant(request?: Request): Promise<Authentica
   return tenant
 }
 
-export async function requireAuth(): Promise<Usuario & { session: Session }> {
-  const user = await getCurrentUser()
+export async function requireAuth(request?: Request): Promise<Usuario & { session: Session }> {
+  const user = request ? await getCurrentUserWithFingerprint(request) : await getCurrentUser()
   if (!user) {
     throw new Error("No autenticado")
   }
   return user
 }
 
-export async function requireAdmin(): Promise<Usuario & { session: Session }> {
-  const user = await requireAuth()
+export async function requireAdmin(request?: Request): Promise<Usuario & { session: Session }> {
+  const user = await requireAuth(request)
   if (user.role !== "admin") {
     throw new Error("No autorizado")
   }

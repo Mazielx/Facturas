@@ -1,7 +1,7 @@
 import { parseXml } from "./xml-parser"
 import { parsePdf } from "./pdf-parser"
 import type { FacturaCompleta, ExtractionResult } from "./types"
-import { dbGet, dbAll, dbRun } from "@/db/client"
+import { dbGet, dbAll, dbRun, dbTransaction } from "@/db/client"
 import crypto from "crypto"
 
 export function calcularConfianza(datos: FacturaCompleta, source: "xml" | "pdf"): number {
@@ -194,6 +194,8 @@ async function insertFactura(
     negocioSlug: string
   }
 ): Promise<number> {
+  // V-48 FIX: Wrap facturas + lineas + adjuntos in a single transaction
+  // to prevent orphaned records on partial failure
   const result = await dbRun(`
     INSERT INTO facturas (
       negocio_slug,
@@ -267,25 +269,37 @@ async function insertFactura(
 
   const facturaId = result.lastInsertRowid
 
+  // Build all child queries as a single atomic transaction
+  const childQueries: Array<{ sql: string; args?: Record<string, unknown> }> = []
+
   for (const linea of datos.lineas) {
-    await dbRun(`
-      INSERT INTO lineas_factura (
+    childQueries.push({
+      sql: `INSERT INTO lineas_factura (
         factura_id, numero_linea, descripcion, cantidad, precio_unitario,
         descuento, tipo_iva, subtotal, total
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, {
-      "1": facturaId, "2": linea.numeroLinea, "3": linea.descripcion,
-      "4": linea.cantidad, "5": linea.precioUnitario, "6": linea.descuento,
-      "7": linea.tipoIva, "8": linea.subtotal, "9": linea.total,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: {
+        "1": facturaId, "2": linea.numeroLinea, "3": linea.descripcion,
+        "4": linea.cantidad, "5": linea.precioUnitario, "6": linea.descuento,
+        "7": linea.tipoIva, "8": linea.subtotal, "9": linea.total,
+      },
     })
   }
 
-  await dbRun(`
-    INSERT INTO adjuntos (factura_id, filename, mime_type, content_hash, content)
-    VALUES (?, ?, ?, ?, ?)
-  `, { "1": facturaId, "2": metadata.filename, "3": metadata.mimeType, "4": metadata.contentHash, "5": metadata.content })
+  childQueries.push({
+    sql: `INSERT INTO adjuntos (factura_id, filename, mime_type, content_hash, content)
+      VALUES (?, ?, ?, ?, ?)`,
+    args: { "1": facturaId, "2": metadata.filename, "3": metadata.mimeType, "4": metadata.contentHash, "5": metadata.content },
+  })
 
-  await insertLog(metadata.emailId, metadata.filename, "success", null, facturaId)
+  childQueries.push({
+    sql: `INSERT INTO procesamiento_log (email_id, adjunto_filename, status, error_message, factura_id)
+      VALUES (?, ?, ?, ?, ?)`,
+    args: { "1": metadata.emailId, "2": metadata.filename, "3": "success", "4": null, "5": facturaId },
+  })
+
+  // Execute all children atomically — if any fails, all roll back
+  await dbTransaction(childQueries)
 
   return facturaId
 }

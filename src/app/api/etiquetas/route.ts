@@ -5,9 +5,9 @@ import { ensureSchema } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
 import { sanitizeString, safeLogError } from "@/lib/security"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const tenant = await requireActiveTenant()
+    const tenant = await requireActiveTenant(request)
     await ensureSchema()
     if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
       return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
@@ -28,7 +28,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const tenant = await requireActiveTenant()
+    const tenant = await requireActiveTenant(req)
     await ensureSchema()
     if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
       return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const tenant = await requireActiveTenant()
+    const tenant = await requireActiveTenant(req)
     await ensureSchema()
     if (!isAccesoCompleto({ email: tenant.user.email, role: tenant.user.role, planPagadoHasta: tenant.negocio.plan_pagado_hasta })) {
       return NextResponse.json({ error: "Se requiere un plan activo" }, { status: 402 })

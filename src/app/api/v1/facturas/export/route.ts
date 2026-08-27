@@ -84,6 +84,10 @@ export async function GET(req: NextRequest) {
     const headers = ["ID", "Numero Factura", "Fecha Emision", "Emisor", "NIF Emisor", "Receptor", "Base Imponible", "Tipo IVA", "Cuota IVA", "Total", "Moneda", "Estado"]
     const escapeCsv = (v: unknown) => {
       const s = v == null ? "" : String(v)
+      // V-26 FIX: Prefix formula chars to prevent CSV injection in spreadsheets
+      if (/^[=+\-@\t\r]/.test(s)) {
+        return `'${s.replace(/"/g, '""')}'`
+      }
       return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s
     }
     const rows = facturas.map((f) =>

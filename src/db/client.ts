@@ -1,12 +1,18 @@
 import { createClient, type Client, type InValue } from "@libsql/client"
 
 let client: Client | null = null
+let pragmaExecuted = false
 
 export function getDb(): Client {
   if (!client) {
     const url = process.env.TURSO_DATABASE_URL || "file:local.db"
     const authToken = process.env.TURSO_AUTH_TOKEN || undefined
     client = createClient({ url, authToken })
+  }
+  // Oracle FIX: Enable foreign key enforcement on first connection
+  if (!pragmaExecuted) {
+    pragmaExecuted = true
+    client.execute("PRAGMA foreign_keys = ON").catch(() => {})
   }
   return client
 }
@@ -44,4 +50,16 @@ export async function dbGet<T = Record<string, unknown>>(sql: string, args?: Rec
 export async function dbRun(sql: string, args?: Record<string, unknown>) {
   const result = await getDb().execute({ sql, args: toArgs(args) })
   return { lastInsertRowid: Number(result.lastInsertRowid), changes: result.rowsAffected }
+}
+
+/**
+ * Morty/Oracle FIX: Execute multiple statements in a single transaction.
+ * Prevents partial writes on crash (insertFactura, deleteNegocio).
+ */
+export async function dbTransaction(queries: Array<{ sql: string; args?: Record<string, unknown> }>) {
+  const statements = queries.map((q) => ({
+    sql: q.sql,
+    args: toArgs(q.args),
+  }))
+  return getDb().batch(statements, "write")
 }

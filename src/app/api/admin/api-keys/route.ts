@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAdmin } from "@/lib/auth"
+import { requireAdmin } from "@/lib/tenant"
 import { createApiKey, getApiKeysByNegocio, deleteApiKey, toggleApiKey } from "@/lib/api-auth"
 import { getAllNegocios } from "@/db"
 import { safeLogError } from "@/lib/security"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    await requireAdmin()
+    await requireAdmin(request)
     const negocios = await getAllNegocios()
 
     const allKeys = []
@@ -34,7 +34,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireAdmin()
+    await requireAdmin(req)
     const body = await req.json()
     const { negocio_id, nombre, permisos } = body
 
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    await requireAdmin()
+    await requireAdmin(req)
     const { searchParams } = new URL(req.url)
     const id = searchParams.get("id")
 
@@ -90,7 +90,7 @@ export async function DELETE(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    await requireAdmin()
+    await requireAdmin(req)
     const body = await req.json()
     const { id, activa } = body
 

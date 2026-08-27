@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server"
 import { getAllNegocios, createNegocio, updateUsuario } from "@/db"
-import { getActiveTenant } from "@/lib/tenant"
-import { getCurrentUser } from "@/lib/auth"
+import { getActiveTenant, requireAuth } from "@/lib/tenant"
 import { isAccesoCompleto } from "@/lib/paywall"
 import { checkRateLimit, RATE_LIMITS, getRateLimitHeaders, extractClientIp, extractUserAgent, logSecurityEvent } from "@/lib/security"
 import { cookies } from "next/headers"
 
-export async function GET() {
-  const user = await getCurrentUser()
+export async function GET(request: Request) {
+  const user = await requireAuth(request)
   if (!user) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 })
   }
@@ -40,7 +39,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await getCurrentUser()
+  const user = await requireAuth(request)
   if (!user) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 })
   }

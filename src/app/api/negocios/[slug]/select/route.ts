@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
 import { getNegocioBySlug } from "@/db"
-import { getCurrentUser } from "@/lib/auth"
+import { requireAuth } from "@/lib/tenant"
 
-export async function POST(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
-  const user = await getCurrentUser()
+export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const user = await requireAuth(request)
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
   const { slug } = await params
@@ -25,8 +25,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ sl
   return response
 }
 
-export async function DELETE() {
-  const user = await getCurrentUser()
+export async function DELETE(request: Request) {
+  const user = await requireAuth(request)
   if (!user) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
   const response = NextResponse.json({ ok: true })

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getCurrentUser } from "@/lib/auth"
+import { requireAuth } from "@/lib/tenant"
 import { getCuentaCorreoById, deleteCuentaCorreo, getNegocioById } from "@/db"
 import { isAccesoCompleto } from "@/lib/paywall"
 import { safeLogError } from "@/lib/security"
@@ -9,7 +9,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser()
+    const user = await requireAuth(_request)
     if (!user) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 })
     }

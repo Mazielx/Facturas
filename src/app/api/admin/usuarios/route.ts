@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAdmin } from "@/lib/auth"
+import { requireAdmin } from "@/lib/tenant"
 import { getAllUsuarios, createUsuario as dbCreateUsuario, updateUsuario, deleteUsuario, getUsuarioByEmail, getAllNegocios } from "@/db"
 import { hashPassword } from "@/lib/auth"
 import { checkRateLimit, RATE_LIMITS, getRateLimitHeaders, sanitizeEmail, sanitizeString, validatePasswordStrength, extractClientIp, extractUserAgent, logSecurityEvent, safeLogError } from "@/lib/security"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    await requireAdmin()
+    await requireAdmin(request)
     const usuarios = await getAllUsuarios()
     return NextResponse.json(usuarios.map(({ password_hash, ...u }) => u))
   } catch (error) {
@@ -23,7 +23,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const admin = await requireAdmin()
+    const admin = await requireAdmin(req)
     const ip = extractClientIp(req)
     const userAgent = extractUserAgent(req)
     const body = await req.json()
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const admin = await requireAdmin()
+    const admin = await requireAdmin(req)
     const ip = extractClientIp(req)
     const userAgent = extractUserAgent(req)
 
@@ -174,7 +174,7 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const admin = await requireAdmin()
+    const admin = await requireAdmin(req)
     const ip = extractClientIp(req)
     const userAgent = extractUserAgent(req)
     const { searchParams } = new URL(req.url)
