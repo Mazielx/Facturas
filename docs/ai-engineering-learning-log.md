@@ -1215,3 +1215,31 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 **What:** Replaced raw `console.error("...", error)` calls (full error objects) with `safeLogError(context, error)` across all route files under `src/app/api/`, plus `secureErrorResponse` now delegates to `safeLogError` internally instead of double-logging the raw error. PII fix: `/api/emails` no longer logs `cuenta.email`.
 **Mistake fixed:** First `tsc --noEmit` run failed with TS1128 at security.ts EOF — file changed on disk mid-run (concurrent session in same working tree); brace-depth re-check was balanced and second run passed clean. Lesson: when multiple agents share a working tree, treat one-off syntax errors at EOF as possible read/write races, not real code bugs — verify before "fixing".
 **Pattern:** Context strings follow the existing `secureErrorResponse` house style: short snake_case operation names (`facturas_stats`, `api_keys_toggle`). Merge new symbols into an existing `@/lib/security` import rather than adding a duplicate import line.
+
+---
+
+## 2026-08-26 — Superagent audit: 8 CRITICAL fixes (facturas)
+
+**What:** Ran 6 specialized agents (Morty, Vendetta, Sheldon, Oracle, House, Zoldyck) in parallel against the full codebase. Found 16 critical issues. Fixed all 8 CRITICAL in one pass:
+
+| Vuln | Agent | Fix |
+|------|-------|-----|
+| V-53 | Vendetta | HTML injection in notification emails — `escapeHtml()` added |
+| V-54 | Vendetta | CSV formula injection in V1 API export — prefix `=+-@\t\r` with `'` |
+| V-55 | Morty/Oracle | `insertFactura` + `deleteNegocio` wrapped in transactions via `dbTransaction()` |
+| V-56 | Morty | `MAX_XML_SIZE` enforced BEFORE parsing (was defined but never checked) |
+| V-57 | Oracle | `PRAGMA foreign_keys = ON` on connection — cascades now enforced |
+| V-58 | Oracle | `deleteNegocio` now cleans up `etiquetas` (was missing) |
+| V-59 | Zoldyck | Stats endpoint: 36 queries → 1 query + JS-side grouping |
+| V-60 | Zoldyck | Dashboard: 4x stats fetch → shared `refreshDashboardData()` helper |
+| V-61 | Vendetta | Fingerprint verification extended to ALL 20 state-changing endpoints |
+
+**Key insight:** The `requireAuth()`/`requireAdmin()` functions in `@/lib/tenant.ts` already accepted an optional `request` param for fingerprint — but nobody was passing it. The fix was mechanical: change import from `@/lib/auth` to `@/lib/tenant`, add `request` param to GET handlers that didn't have one, pass it through.
+
+**Performance win:** Stats endpoint went from O(n × m) queries (n = estados × meses × emisores) to O(1) — single query returns all rows, JavaScript groups them with Map. For a 500-factura tenant this eliminates ~35 round-trips.
+
+**Transaction pattern:** `dbTransaction()` uses libsql's `batch(statements, "write")` which wraps all statements in a single SQLite transaction. Child records (lineas, adjuntos, log) now atomic — if any child fails, all roll back. The parent factura INSERT is still separate (needs `lastInsertRowid`), but the blast zone is minimal.
+
+**Lesson:** When an agent says "X is missing enforcement", always check both the definition AND every call site. The fingerprint infrastructure existed — 20 call sites just weren't using it. Similarly, MAX_XML_SIZE was defined but never referenced.
+
+*Last updated: 2026-08-26*

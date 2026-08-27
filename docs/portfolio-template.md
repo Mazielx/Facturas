@@ -465,7 +465,13 @@ Verify what's actually failing and fix it.
 - Replaced every raw `console.error` that dumped full error objects across `src/app/api/**` with `safeLogError(context, error)` (sanitized category codes only); `secureErrorResponse` reuses it internally. Removed an email address from a Gmail-account log line.
 - Verified with `npx tsc --noEmit` (clean).
 
+### Milestone 2026-08-26 — Superagent parallel audit + 8 CRITICAL fixes (facturas)
+- Launched 6 specialized agents (Morty/QA, Vendetta/security, Sheldon/quality, Oracle/data, House/diagnostics, Zoldyck/performance) in parallel. Found 16 issues. Fixed all 8 CRITICAL in one commit:
+  - HTML injection in emails (escapeHtml), CSV formula injection (prefix), insertFactura/deleteNegocio transactions, MAX_XML_SIZE enforcement, PRAGMA foreign_keys ON, etiquetas cleanup, stats N+1→1 query, dashboard 4x→1x fetch, fingerprint on ALL 20 state-changing endpoints.
+- Key insight: fingerprint infrastructure existed — 20 call sites just weren't using it. Fix was mechanical, not architectural.
+- Performance: stats endpoint 36 queries → 1 query + JS grouping.
+
 ---
 
 *Template by: Ian Maziel*
-*Last updated: 2026-08-24*
+*Last updated: 2026-08-26*

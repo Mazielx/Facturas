@@ -582,3 +582,13 @@ Effective prompt shape: numbered fix list with file path + exact line numbers + 
 
 ### 2026-08-24 — Bulk mechanical refactor prompt pattern
 Effective prompt shape for cross-file refactors: "Replace ALL `X` with `Y` in <dir>" + exact function signature + per-file occurrence counts + one exception list ("DO NOT touch: ...") + special-case instructions inline ("ALSO remove the PII from this log") + single verification command (`npx tsc --noEmit`). Occurrence counts per file let the executor self-check completeness via grep.
+
+---
+
+### 2026-08-26 — Parallel superagent audit prompt pattern
+Effective pattern: Launch 6 specialized agents simultaneously with identical codebase context but different lenses (QA, security, architecture, data, performance, diagnostics). Each agent returns a structured table: { finding | severity | file | line | fix }. Then a single executor pass applies all CRITICAL fixes in one commit. This is 10x faster than sequential audits because agents don't block each other, and the executor can batch related fixes (e.g., "fingerprint missing on 20 routes" becomes one `replaceAll` pass).
+
+### 2026-08-26 — "Foundation exists but unused" pattern
+When an agent reports "X is not enforced", the first check should be: does the enforcement CODE already exist, just not wired up? In our case, `getCurrentUserWithFingerprint()` and `requireAuth(request)` both existed — 20 call sites just weren't passing the request. The fix was mechanical (change import + add param), not architectural. Always grep for the SYMBOL before assuming it needs to be built.
+
+*Last updated: 2026-08-26*
