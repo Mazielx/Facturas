@@ -471,6 +471,15 @@ Verify what's actually failing and fix it.
 - Key insight: fingerprint infrastructure existed — 20 call sites just weren't using it. Fix was mechanical, not architectural.
 - Performance: stats endpoint 36 queries → 1 query + JS grouping.
 
+### Milestone 2026-08-26 — Superagent audit completion (facturas)
+- Launched 5 remaining agents (Vendetta, Sheldon, Zoldyck, Oracle, Morty) to close all MEDIUM/LOW findings.
+- **Vendetta:** Discovered account lockout was NON-FUNCTIONAL on Vercel (in-memory Maps reset on cold starts = unlimited brute-force). Migrated to Upstash Redis with in-memory fallback.
+- **Zoldyck:** googleapis 204MB → @googleapis/gmail 22MB (89% reduction).
+- **Sheldon:** 2x `as any` removed, 17x non-null assertions fixed, ExtractionResult → discriminated union.
+- **Oracle:** 5 new indexes, duplicate schema removed, confianza_nivel default fixed, unique constraints added.
+- **Morty:** deleteNegocio user cleanup added.
+- Total: 30 files changed, 343 insertions, 118 deletions.
+
 ---
 
 *Template by: Ian Maziel*

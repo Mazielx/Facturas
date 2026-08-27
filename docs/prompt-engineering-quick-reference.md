@@ -591,4 +591,10 @@ Effective pattern: Launch 6 specialized agents simultaneously with identical cod
 ### 2026-08-26 — "Foundation exists but unused" pattern
 When an agent reports "X is not enforced", the first check should be: does the enforcement CODE already exist, just not wired up? In our case, `getCurrentUserWithFingerprint()` and `requireAuth(request)` both existed — 20 call sites just weren't passing the request. The fix was mechanical (change import + add param), not architectural. Always grep for the SYMBOL before assuming it needs to be built.
 
+### 2026-08-26 — "Production architecture mismatch" pattern
+A security control can work perfectly in dev/CI and be completely broken in production. The rate limiter and account lockout used in-memory Maps — correct on Railway's `next start`, but non-functional on Vercel's serverless (each invocation gets a fresh process). The fix: shared external store (Upstash Redis) with in-memory fallback. Key prompt: "Where does this code ACTUALLY run in production? What's the runtime model?" — ask this for every security control.
+
+### 2026-08-26 — "Sync→Async cascade" pattern
+When making a function async (e.g., `checkRateLimit` → `async checkRateLimit`), every call site needs `await`. Missing one causes silent `Promise` propagation — no error, no warning, just wrong behavior. Fix: after making a function async, `grep -rn "functionName(" src/` and add `await` to every call site. TypeScript catches unused Promises only if `noUnusedLocals` is enabled and the return value isn't assigned.
+
 *Last updated: 2026-08-26*

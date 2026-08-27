@@ -1243,3 +1243,22 @@ Personal learning journal documenting my journey to become an AI-assisted develo
 **Lesson:** When an agent says "X is missing enforcement", always check both the definition AND every call site. The fingerprint infrastructure existed — 20 call sites just weren't using it. Similarly, MAX_XML_SIZE was defined but never referenced.
 
 *Last updated: 2026-08-26*
+
+---
+
+## 2026-08-26 — Superagent audit completion: remaining MEDIUM/LOW fixes (facturas)
+
+**What:** Launched 5 remaining agents (Vendetta, Sheldon, Zoldyck, Oracle, Morty) to close all non-CRITICAL findings from the superagent audit.
+
+**Key findings & fixes:**
+1. **Vendetta (CRITICAL miss):** Account lockout was in-memory and NON-FUNCTIONAL on Vercel — unlimited brute-force was possible. Fixed with Upstash Redis + in-memory fallback. Also: `checkRateLimit` and all lockout functions became async, requiring `await` at 14+ call sites.
+2. **Zoldyck:** googleapis monolithic import (204MB) → `@googleapis/gmail` (22MB). 89% node_modules reduction. Safe migration because the Gmail v1 API is identical.
+3. **Sheldon:** 2x `as any` removed, 17x non-null assertions fixed with proper null checks/guards, ExtractionResult converted to discriminated union, 2x `eslint-disable` comments removed.
+4. **Oracle:** `confianza_nivel` DEFAULT fixed ('alta' → 'confiable'), duplicate security_log CREATE TABLE removed, 5 new indexes (dedup queries, lineas unique, duplicados unique, session expiry), PRAGMA foreign_keys error logging added.
+5. **Morty:** deleteNegocio now cleans up negocio-role users (admin users kept with negocio_id=NULL).
+
+**Lesson:** The rate limiting/lockout fix was the biggest surprise. The in-memory Maps worked perfectly in development and on Railway, but were completely broken on Vercel's serverless architecture. Each function invocation gets a fresh process with empty Maps. The lesson: always ask "where does this run in production?" before declaring a security control "working." The lockout bypass was invisible — no errors, no logs, just an empty Map on every request.
+
+**Pattern:** When making previously-sync functions async (like `checkRateLimit`), grep for ALL call sites before committing. Missing a single `await` causes silent `Promise` object propagation instead of the expected return value. TypeScript's `noUnusedLocals` would catch unused Promises, but only if the return value isn't used.
+
+*Last updated: 2026-08-26*
