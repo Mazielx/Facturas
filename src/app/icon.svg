@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Outer arc of G (open on the right) -->
+  <path d="M256 48C139.6 48 48 139.6 48 256s91.6 208 208 208c41.4 0 80-12.2 112.4-33.2" stroke="#10b981" stroke-width="48" stroke-linecap="round"/>
+  <!-- Inner arc of G -->
+  <path d="M256 128c-70.8 0-128 57.2-128 128s57.2 128 128 128c27.2 0 52.4-8.6 73.2-23.2" stroke="#10b981" stroke-width="48" stroke-linecap="round"/>
+  <!-- Horizontal bar of G -->
+  <path d="M280 256h140" stroke="#10b981" stroke-width="48" stroke-linecap="round"/>
+  <!-- Vertical downward tick of G -->
+  <path d="M420 256v60" stroke="#10b981" stroke-width="48" stroke-linecap="round"/>
+</svg>
